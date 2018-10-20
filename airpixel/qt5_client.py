@@ -1,16 +1,11 @@
-import typing as t
-from threading import Thread
-
 from PyQt5.QtCore import Qt, QPointF
 from PyQt5.QtGui import QPainter, QPen, QColor
 from PyQt5.QtWidgets import QWidget
-import numpy as np
 
-import ring_client
-import audio_tools
+from . import client
 
 
-class LedRingWidget(QWidget):
+class LedWidget(QWidget):
     _radius = 300
     _led_radius = 10
     _size = _radius * 2 + _led_radius * 2
@@ -22,6 +17,9 @@ class LedRingWidget(QWidget):
         self.resize(self._size, self._size)
         self.colors = [QColor() for _ in range(num_leds)]
 
+    # Disable unused argument and snake case naming convention because this overrides a QWidget
+    # function.
+    # pylint: disable=C0103,W0613
     def paintEvent(self, event):
         painter = QPainter()
         painter.begin(self)
@@ -45,10 +43,10 @@ class LedRingWidget(QWidget):
         painter.end()
 
 
-class Qt5RingClient(ring_client.AbstractClient):
+class Qt5Client(client.AbstractClient):
     def __init__(self, num_leds: int) -> None:
         super().__init__(num_leds)
-        self._main_widget = LedRingWidget(num_leds)
+        self._main_widget = LedWidget(num_leds)
 
     def connect(self) -> None:
         self._main_widget.show()

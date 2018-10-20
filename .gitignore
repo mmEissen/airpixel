@@ -1,4 +1,4 @@
-
 __pycache__/*
+*.egg-info
 
 ESP8266airpixel/config.h

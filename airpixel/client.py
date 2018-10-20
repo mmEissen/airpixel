@@ -2,15 +2,14 @@ import abc
 import socket
 import time
 import threading
-from collections import deque
 import typing as t
 
 import numpy as np
 
-import gamma_table
+from . import gamma_table
 
 
-class ConnectionError(OSError):
+class AirClientConnectionError(OSError):
     pass
 
 
@@ -27,7 +26,8 @@ class Pixel:
         self._values = np.array((red, green, blue))
 
     def __repr__(self) -> str:
-        return "<{}:{}>".format(self.__class__.__name__, self.get_rgbw())
+        red, green, blue = (int(c) for c in self.get_rgb() * 255)
+        return f"<{self.__class__.__name__}:{red:0>3},{green:0>3},{blue:0>3}>"
 
     def get_rgbw(self):
         # For now just r, g, b, 0.
@@ -36,10 +36,10 @@ class Pixel:
         return np.append(self._values, [0])
 
     def get_rgb(self):
-        return self._values * 255
+        return self._values
 
 
-class RingDetective(object):
+class AirDetective:
     def __init__(self, port: int) -> None:
         self._socket = None
         self._port = port
@@ -49,13 +49,13 @@ class RingDetective(object):
             self._socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         except OSError as error:
             self._socket = None
-            raise ConnectionError("Error creating socket") from error
+            raise AirClientConnectionError("Error creating socket") from error
         try:
             self._socket.bind(("", self._port))
         except OSError as error:
             self._socket.close()
             self._socket = None
-            raise ConnectionError("Error connecting to server") from error
+            raise AirClientConnectionError("Error while binding the socket") from error
 
     def _find_ip(self):
         message = b""
@@ -104,7 +104,7 @@ class AbstractClient(abc.ABC):
         pass
 
 
-class RingClient(AbstractClient):
+class AirClient(AbstractClient):
     _frame_number_bytes = 4
 
     def __init__(
@@ -120,18 +120,18 @@ class RingClient(AbstractClient):
         return self._tcp_socket is not None
 
     def connect(self) -> None:
-        self._ring_address = RingDetective(self._port).find_ring_ip()
+        self._ring_address = AirDetective(self._port).find_ring_ip()
         try:
             self._tcp_socket = socket.socket()
         except OSError as error:
             self._tcp_socket = None
-            raise ConnectionError("Error creating socket") from error
+            raise AirClientConnectionError("Error creating socket") from error
         try:
             self._tcp_socket.connect((self._ring_address, self._port))
         except OSError as error:
             self._tcp_socket.close()
             self._tcp_socket = None
-            raise ConnectionError("Error connecting to server") from error
+            raise AirClientConnectionError("Error connecting to server") from error
 
     def disconnect(self) -> None:
         if self.is_connected():
@@ -143,7 +143,7 @@ class RingClient(AbstractClient):
 
     def _raw_data(self):
         pixels = np.concatenate(self._pixel_list())
-        pixels = gamma_table.gamma_table[(pixels * 255).astype("uint8")]
+        pixels = gamma_table.GAMMA_TABLE[(pixels * 255).astype("uint8")]
         return bytes(self._frame_number_bytes) + bytes(pixels)
 
     def show(self) -> None:
@@ -154,29 +154,28 @@ class RingClient(AbstractClient):
 
 class RenderLoop(threading.Thread):
 
-    def __init__(self, ring_client, update_fnc, max_framerate=120):
+    def __init__(self, air_client, update_fnc, max_framerate=120):
         super().__init__(name="render-loop-thread")
         self._frame_period = 1 / max_framerate
         self._update_fnc = update_fnc
         self._is_running = False
-        self._ring_client = ring_client
-        self._last_report = 0
+        self._air_client = air_client
 
     def _loop(self):
         draw_start_time = time.time()
         new_frame = self._update_fnc(draw_start_time)
-        self._ring_client.set_frame(new_frame)
-        self._ring_client.show()
+        self._air_client.set_frame(new_frame)
+        self._air_client.show()
         time_to_next_frame = self._frame_period - time.time() + draw_start_time
         if time_to_next_frame > 0:
             time.sleep(time_to_next_frame)
 
     def run(self):
-        self._ring_client.connect()
+        self._air_client.connect()
         self._is_running = True
         while self._is_running:
             self._loop()
-        self._ring_client.disconnect()
+        self._air_client.disconnect()
 
     def stop(self):
         self._is_running = False

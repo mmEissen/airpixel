@@ -107,9 +107,7 @@ class AbstractClient(abc.ABC):
 class AirClient(AbstractClient):
     _frame_number_bytes = 4
 
-    def __init__(
-        self, port: int, num_leds: int,
-    ) -> None:
+    def __init__(self, port: int, num_leds: int) -> None:
         super().__init__(num_leds)
         self._port = port
         self._ring_address = None
@@ -153,7 +151,6 @@ class AirClient(AbstractClient):
 
 
 class RenderLoop(threading.Thread):
-
     def __init__(self, air_client, update_fnc, max_framerate=120):
         super().__init__(name="render-loop-thread")
         self._frame_period = 1 / max_framerate

@@ -1,7 +1,11 @@
 language: python
 python:
   - "3.6"
-  - "3.7-dev"
+matrix:
+  include:
+    - python: 3.7
+      dist: xenial
+      sudo: true
 install:
   - pip install -r requirements.txt
   - pip install .
@@ -9,3 +13,10 @@ script:
   - black --diff --check airpixel/ setup.py
   - pylint airpixel/ setup.py
   - pytest
+deploy:
+  provider: pypi
+  user: "mmEissen"
+  password:
+    secure: lCpTQ2ge2mP1j5nXinsbXt6JECPf6l50I7Zmxsue97VDwN2wbIP3fGYSTo0xVqTw3+NOBw/ZlCYMZZc0DoKorxAHORm9tRMKfDIq92G/elGQjU+xt9xVFBh45BaLDDEY8/yLq2M9k/lIRtePjw7xkHvDr2RbHoq9oyMuqf6rnUYpvLTzv0Jh8rJTwlckIouLi12PWHP5CGbDGYlghICdp55skWmOKFAURBAQbDDtcIvwZ/AIGkXU/9LtZ2EzBV53sy04YFqVscPIV90BDSOEkjl5fgR9sY3wfjAA6MoZgUGktQjhWeACOrwQG0IUpX0/jf1jHslnzo5czJtO2U7tPJRnIzzJiOn21JH9dSjCDP4ok/IEZ4ZfvJ2tTNHe5p12Bs2WjNd25uDOkXkV5nfiZHlUC1GxH1a5/R80W1UsCBe58oM3SBMxszRfiYcReHHIzqkZFsXr9gmjhouQjOkvpWPfBTvOLTJnHMOF2zZFOQyLW7hywFkHwW+BHiusMLsDzG3kgJ+7j1EHtl57EVKI+S/sMpfhdvIzvB7eK7hghQtvwAeA+FUFRM7CAWvV7HU/GGfnCXeSZwoSYRRxvZMUZz61WQgokAPQAJeAFhKVZ4nAYVQPoWPtuvde3vUgxnhdx+WTVWCce51AqGnUfIk78ooSIDDO7LwxFOfxo6VDfqQ=
+  on:
+    branch: master  

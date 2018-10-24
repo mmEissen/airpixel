@@ -1,22 +1,22 @@
 language: python
 python:
-  - "3.6"
+- '3.6'
 matrix:
   include:
-    - python: 3.7
-      dist: xenial
-      sudo: true
+  - python: 3.7
+    dist: xenial
+    sudo: true
 install:
-  - pip install -r requirements.txt
-  - pip install .
+- pip install -r requirements.txt
+- pip install .
 script:
-  - black --diff --check airpixel/ setup.py
-  - pylint airpixel/ setup.py
-  - pytest
+- black --diff --check airpixel/ setup.py
+- pylint airpixel/ setup.py
+- pytest
 deploy:
   provider: pypi
   user: mmEissen
   password:
-    secure: hxT1JinrYF2m4y4aw2nzorGzzBAQfnDWwlbD9trk9qZsHQYz3FpzRgxPbkabF5lx4dtEkz+Gp6cHhFlnnMDQJ4QdUe7n1r0Wbcy6fLNT3NCJLcuKeqIut8DlxUz/6ZvWEj9ucAFfW74BtAOfJ89uUzy0KvrNbLvD2Y+hhRXgpDW8X6i5+08Ggr4IA3UTcTGDoktlOrM/SQWyJ4OH20hQL4KkFDnXO+X2T0efwWk1o6IAney4CMcjPkLdwV8/ovzWMJmwtXiLqiFHqaUqtetI8/RrDC+gdteXYAo1kwveQQFL2TV5hpJIlZKPN8ALW8bt+qR1JrGF/pICH88PTc4DU3oa1tHm7WJGudY6HUrj5tIKMjgnPAwMkwwnfbgpSj+Qw06RWzlkPloxIk2sFATKRDJ1a78atteTr9GuU9x/y9B5+J+I7kQgRcDSLsRbn4LoqeoVkZnEhgaSoPwv8pdyHDm/F9z+DEiHsmbyqE3T7nCJJcQuEm+LIRbiWV1tMxXmkZ0ZUDDSPyTGCLIGUwL5fSyg23mITCrqFfNCAwgbcCD8yLXfkGDL28A7DaovTp3Mp9Dq/KNKKMVe1RosvDC8OFBNdydP1cHykQ6iKjoD+OOga2W/rwsyLTuwP8t1b6wVmGA6hVmS/DuCWWL+84W2XVxtzRJ1R5vmpy0mp+sJlaw=
+    secure: O+xkfc51OrCL5KzeaHNXm0nHjReS5/zz0dr29iSGhFvL40FNS4uyHPcAoARrpHE6xhfwR7rKRNs2ky+rgbZ4o/6FhwgbLFs9bQmp4r3fsU+XGfkxF0jU3ZiLg3Rd9+PK2941GgvfHxs1JW4sJiczgViI2Q4lVVHxnwrU5t48wo0co5ddIx20+CrPjXiTjlD95VLBHIrGtauPKBcd+yFOVZGilNh4T0mayOu+iDTU2xhcZwbbdX1C2JgoqteSum7sQHjguMUu39AqqyNiOoIGsEEXZe304N7jb1W5Cr8tlJFa23kwueUl+zd40plRk8SxyYbpt9yuOSGDoyuzMlHfpI5g7i+1zVARMPHKi7bRv7m0fj64PWOUGV5kuEn1mwsec1n/82K3qdn2eH9z40YKue2CxxdgDtBqTgL95X9nILg5tqQ1I1x0iIc5VIejzxnJmPuIjJL74nBC2eVhUFUdjyz/jIcjEefiCB3yBI9DvrcFHtwYf5YKaY+2wrTWL+iy+YE7y0br2L1t4NFxLK+ltsw3QMIw/TOFrSf93d8FA+ecHYheylbWNjfuaogZ2LE4G25UkSGBYa1sT8nLWDaqeKYwD8BAprwqSEEMipzE19ndZbL2XIhXqKwpalLV7ke6v1pH6iITkHTH2FceU7tHtBp4JpOrBHLzvUG/Qt/p2lU=
   on:
-    branch: master  
+    branch: master

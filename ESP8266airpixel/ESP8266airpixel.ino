@@ -14,23 +14,26 @@
 #define NUM_COLORS 4
 #define FRAME_SIZE NUM_COLORS * NUM_LEDS
 
-#define FRAME_NUMBER_BYTES 4
+#define FRAME_NUMBER_BYTES 8
+#define PORT_NUMBER_BYTES 4
 #define PACKET_SIZE (FRAME_NUMBER_BYTES + FRAME_SIZE)
-#define KEEPALIVE_FRAME_NUMBER 0xFFFFFFFF
+
+#define DISCONNECT_FRAME_NUMBER 0xFFFFFFFFFFFFFFFF
+#define CONNECT_FRAME_NUMBER 0xFFFFFFFFFFFFFFFE
+#define HEARTBEAT_FRAME_NUMBER 0xFFFFFFFFFFFFFFFD
 
 #define WAIT_FOR_CONNECTION_SECONDS 10
-#define TIMEOUT_MILLISECONDS 10000
+#define TIMEOUT_MILLISECONDS 5000
 
 
 
 NeoPixelBus<NeoRgbwFeature, Neo800KbpsMethod> strip(NUM_LEDS);
 
-WiFiServer server(PORT);
-WiFiClient client = WiFiClient();
 WiFiUDP udp;
-
-uint8_t wiFiFrame[FRAME_SIZE];
+IPAddress connectedIP;
 unsigned long lastMessage;
+uint32_t clientReceivePort;
+uint64_t lastFrameNumber;
 
 enum class State {
   DISCONNECTED,
@@ -47,6 +50,7 @@ void setup() {
 
   DEBUG("SETUP");
   currentState = State::DISCONNECTED;
+  lastFrameNumber = 0;
   strip.Begin();
 }
 
@@ -95,7 +99,6 @@ void onWiFiConnect() {
   DEBUG("WiFi connected.");
   DEBUG(WiFi.localIP());
   udp.begin(PORT);
-  server.begin();
 }
 
 void onWiFiDisconnect() {
@@ -110,15 +113,41 @@ void connectToClient() {
   }
   advertise();
   delay(100);
-  client = server.available();
-  if (client && client.connected()) {
-    onClientConnect();
+
+  uint64_t available;
+  while (available = udp.parsePacket()) {
+    
+    if (available != FRAME_NUMBER_BYTES + PORT_NUMBER_BYTES){
+      continue;
+    }
+
+    auto frameNumber = readFrameNumber();
+    if (frameNumber == CONNECT_FRAME_NUMBER) {
+      onClientConnect();
+      return;
+    }
   }
+}
+
+uint32_t getPortNumber() {
+  uint32_t port = 0;
+
+  for (int i = 0; i < 4; ++i) {
+    port = port << 8;
+    port += udp.read();
+  }
+
+  return port;
 }
 
 void onClientConnect() {
   currentState = State::CLIENT_CONNECTED;
+  connectedIP = udp.remoteIP();
+  clientReceivePort = getPortNumber();
   DEBUG("client connected");
+  DEBUG(connectedIP);
+  DEBUG(clientReceivePort);
+  sendFrameNumber(CONNECT_FRAME_NUMBER);
   lastMessage = millis();
 }
 
@@ -146,48 +175,72 @@ bool isTimedOut() {
   return now < lastMessage;
 }
 
-bool isClientConnected() {
-  return client && client.connected();
-}
-
 void checkMessages() {
-  if (!isClientConnected()) {
-    onClientDisconnect();
-    return;
-  }
   auto available = udp.parsePacket();
-  if (available == PACKET_SIZE) {
+
+  if (available && udp.remoteIP() == connectedIP) {
+    if (available == PACKET_SIZE) {
+      readMessage();
+    }
+    if (available == FRAME_NUMBER_BYTES) {
+      readCommand();
+    }
+  }
+
+  if (available == PACKET_SIZE && udp.remoteIP() == connectedIP) {
     lastMessage = millis();
     readMessage();
-  } else {
-    discardMessage();
   }
+
   if(isTimedOut()) {
     DEBUG("Client timed out");
-    client.flush();
-    client.stop();
-    client = WiFiClient();
+    onClientDisconnect();
   }
 }
 
-void discardMessage() {
-  while (udp.available()) {
-    udp.read();
-  }
-}
-
-void readMessage() {
-  DEBUG("Message received");
-  uint32_t frameNumber = 0;
+uint64_t readFrameNumber() {
+  uint64_t frameNumber = 0;
 
   for (int i = 0; i < FRAME_NUMBER_BYTES; ++i) {
     frameNumber = frameNumber << 8;
     frameNumber += udp.read();
   }
 
-  if (frameNumber == KEEPALIVE_FRAME_NUMBER) {
-    DEBUG("Ignoring keepalive message");
-    discardMessage();
+  return frameNumber;
+}
+
+void readCommand() {
+  DEBUG("Command received");
+  auto frameNumber = readFrameNumber();
+
+  if (frameNumber == HEARTBEAT_FRAME_NUMBER) {
+    DEBUG("KEEP ALIVE MESSAGE");
+    lastMessage = millis();
+    sendFrameNumber(frameNumber);
+    return;
+  }
+
+  if (frameNumber == DISCONNECT_FRAME_NUMBER) {
+    DEBUG("DISCONNECT MESSAGE");
+    sendFrameNumber(frameNumber);
+    onClientDisconnect();
+    return;
+  }
+  
+  if (frameNumber == CONNECT_FRAME_NUMBER) {
+    DEBUG("IGNORING CONNECTION MESSAGE");
+    return;
+  }
+}
+
+void readMessage() {
+  DEBUG("Message received");
+  lastMessage = millis();
+  auto frameNumber = readFrameNumber();
+
+  if (frameNumber <= lastFrameNumber) {
+    DEBUG("DISCARDING OUT OF ORDER FRAME");
+    sendFrameNumber(frameNumber);
     return;
   }
 
@@ -195,15 +248,16 @@ void readMessage() {
   strip.Dirty();
   strip.Show();
 
+  lastFrameNumber = frameNumber;
   sendFrameNumber(frameNumber);
 }
 
-void sendFrameNumber(uint32_t number) {
-  udp.beginPacket(udp.remoteIP(), udp.remotePort());
+void sendFrameNumber(uint64_t number) {
+  udp.beginPacket(connectedIP, clientReceivePort);
   for (int i = 0; i < FRAME_NUMBER_BYTES; ++i) {
-    char nextChar = static_cast<char>(number);
+    char nextChar = static_cast<char>(number >> ((FRAME_NUMBER_BYTES - 1) * 8));
     udp.write(nextChar);
-    number = number >> 8;
+    number = number << 8;
   }
   udp.endPacket();
 }

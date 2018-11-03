@@ -2,6 +2,7 @@ import abc
 import socket
 import time
 import threading
+import queue
 import typing as t
 
 import numpy as np
@@ -9,11 +10,19 @@ import numpy as np
 from . import gamma_table
 
 
-class AirClientConnectionError(OSError):
+class AirClientError(Exception):
     pass
 
 
-class NotConnectedError(Exception):
+class ConnectionFailedError(AirClientError):
+    pass
+
+
+class ThreadUnresponsiveError(AirClientError):
+    pass
+
+
+class NotConnectedError(AirClientError):
     pass
 
 
@@ -41,31 +50,16 @@ class Pixel:
 
 class AirDetective:
     def __init__(self, port: int) -> None:
-        self._socket = None
         self._port = port
+        self._socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
-    def _bind_socket(self):
-        try:
-            self._socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        except OSError as error:
-            self._socket = None
-            raise AirClientConnectionError("Error creating socket") from error
-        try:
+    def find_remote_ip(self):
+        with self._socket:
             self._socket.bind(("", self._port))
-        except OSError as error:
-            self._socket.close()
-            self._socket = None
-            raise AirClientConnectionError("Error while binding the socket") from error
-
-    def _find_ip(self):
-        message = b""
-        while message != b"LEDRing\n":
-            message, _, _, (ip_address, _) = self._socket.recvmsg(32)
-        return ip_address
-
-    def find_ring_ip(self):
-        self._bind_socket()
-        return self._find_ip()
+            message = b""
+            while message != b"LEDRing\n":
+                message, _, _, (ip_address, _) = self._socket.recvmsg(32)
+            return ip_address
 
 
 class AbstractClient(abc.ABC):
@@ -104,37 +98,189 @@ class AbstractClient(abc.ABC):
         pass
 
 
-class AirClient(AbstractClient):
-    _frame_number_bytes = 4
+class TimeoutTracker:
+    def __init__(self, timeout, send_heartbeat_fnc):
+        self._timeout = timeout
+        self._last_message = float("+inf")
+        self._heartbeats_sent = 0
+        self._send_heartbeat = send_heartbeat_fnc
 
-    def __init__(self, port: int, num_leds: int) -> None:
+    def is_timed_out(self):
+        return self._last_message + self._timeout < time.time()
+
+    def notify_got_message(self):
+        self._last_message = time.time()
+        self._heartbeats_sent = 0
+
+    def send_heartbeat_if_needed(self):
+        next_beat = (
+            1 - 1 / 2 ** (self._heartbeats_sent + 1)
+        ) * self._timeout + self._last_message
+        if time.time() > next_beat:
+            self._send_heartbeat()
+            self._heartbeats_sent += 1
+
+
+class ConnectionSupervisor(threading.Thread):
+    _buffer_size = 4096
+    _socket_timeout = 0.01
+
+    def __init__(self, remote_address, local_address, timeout, heartbeat_message):
+        super().__init__(name="connection-supervisor-thread")
+        self._is_running = False
+        self._remote_address = remote_address
+        self._local_address = local_address
+
+        self._send_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self._receive_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self._receive_socket.settimeout(self._socket_timeout)
+
+        self._send_buffer = queue.SimpleQueue()
+        self._receive_buffer = queue.SimpleQueue()
+
+        self._heartbeat_message = heartbeat_message
+        self._timeout_tracker = TimeoutTracker(timeout, self._send_heartbeat)
+
+    def _send_heartbeat(self):
+        self._send_raw(self._heartbeat_message)
+
+    def _check_timeout(self):
+        if self._timeout_tracker.is_timed_out():
+            self.stop()
+
+    def _send_raw(self, message):
+        self._send_socket.sendto(message, self._remote_address)
+
+    def _read_message_to_buffer(self):
+        try:
+            message, _, _, (ip_address, _) = self._receive_socket.recvmsg(
+                self._buffer_size
+            )
+        except socket.timeout:
+            return
+        if ip_address == self._remote_address[0]:
+            self._receive_buffer.put_nowait(message)
+            self._timeout_tracker.notify_got_message()
+
+    def _send_message_from_buffer(self):
+        try:
+            message = self._send_buffer.get_nowait()
+        except queue.Empty:
+            return False
+        self._send_raw(message)
+        return True
+
+    def _flush_send_buffer(self):
+        while self._send_message_from_buffer():
+            pass
+
+    def send(self, message):
+        self._send_buffer.put_nowait(message)
+
+    def incoming_messages(self):
+        """Consume the receive buffer and return the messages.
+
+        If there are new messages added to the queue while this funciton is being
+        processed, they will not be returned. This ensures that this terminates in
+        a timely manner.
+        """
+        approximate_messages = self._receive_buffer.qsize()
+        messages = []
+        for _ in range(approximate_messages):
+            try:
+                messages.append(self._receive_buffer.get_nowait())
+            except queue.Empty:
+                break
+        return messages
+
+    def wait_for_message(self, timeout):
+        try:
+            return self._receive_buffer.get(True, timeout)
+        except queue.Empty:
+            return None
+
+    def _setup(self):
+        self._is_running = True
+        self._receive_socket.bind(self._local_address)
+
+    def _loop(self):
+        self._read_message_to_buffer()
+        self._send_message_from_buffer()
+        self._check_timeout()
+        self._timeout_tracker.send_heartbeat_if_needed()
+
+    def _teardown(self):
+        self._flush_send_buffer()
+
+    def run(self):
+        with self._receive_socket, self._send_socket:
+            self._setup()
+            while self._is_running:
+                self._loop()
+            self._teardown()
+
+    def stop(self):
+        self._is_running = False
+
+    def is_connected(self):
+        return self._is_running
+
+
+class AirClient(AbstractClient):
+    _encoding_byteorder = "big"
+    _timeout_seconds = 5
+    _frame_number_bytes = 8
+    _connect_atempts = 3
+    _disconnect_frame = (2 ** (8 * _frame_number_bytes) - 1).to_bytes(
+        _frame_number_bytes, _encoding_byteorder
+    )
+    _connect_frame = (2 ** (8 * _frame_number_bytes) - 2).to_bytes(
+        _frame_number_bytes, _encoding_byteorder
+    )
+    _heartbeat_frame = (2 ** (8 * _frame_number_bytes) - 3).to_bytes(
+        _frame_number_bytes, _encoding_byteorder
+    )
+
+    def __init__(self, remote_port, receive_port, num_leds):
         super().__init__(num_leds)
-        self._port = port
-        self._ring_address = None
-        self._tcp_socket: t.Optional[socket.socket] = None
-        self._udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        if remote_port == receive_port:
+            raise ValueError("remote_port must be different from receive_port!")
+        self._remote_port = remote_port
+        self._receive_port = receive_port
+        self._frame_number = 0
+        self._connection = self._make_connection_supervisor("")
+
+    def _make_connection_supervisor(self, remote_ip):
+        return ConnectionSupervisor(
+            (remote_ip, self._remote_port),
+            ("", self._receive_port),
+            self._timeout_seconds,
+            self._heartbeat_frame,
+        )
 
     def is_connected(self) -> bool:
-        return self._tcp_socket is not None
+        return self._connection.is_connected()
+
+    def _attempt_connect(self):
+        port_as_bytes = self._receive_port.to_bytes(4, self._encoding_byteorder)
+        self._connection.send(self._connect_frame + port_as_bytes)
+        message = self._connection.wait_for_message(self._timeout_seconds)
+        return message == self._connect_frame
 
     def connect(self) -> None:
-        self._ring_address = AirDetective(self._port).find_ring_ip()
-        try:
-            self._tcp_socket = socket.socket()
-        except OSError as error:
-            self._tcp_socket = None
-            raise AirClientConnectionError("Error creating socket") from error
-        try:
-            self._tcp_socket.connect((self._ring_address, self._port))
-        except OSError as error:
-            self._tcp_socket.close()
-            self._tcp_socket = None
-            raise AirClientConnectionError("Error connecting to server") from error
+        remote_address = AirDetective(self._remote_port).find_remote_ip()
+        self._connection = self._make_connection_supervisor(remote_address)
+        self._connection.start()
+
+        for _ in range(self._connect_atempts):
+            if self._attempt_connect():
+                return
+        raise ConnectionFailedError("Failed to connect!")
 
     def disconnect(self) -> None:
-        if self.is_connected():
-            self._tcp_socket = t.cast(socket.socket, self._tcp_socket)
-            self._tcp_socket.close()
+        self._connection.send(self._disconnect_frame)
+        self._connection.stop()
+        self._connection.join()
 
     def _pixel_list(self):
         return [pixel.get_rgbw() for pixel in self._pixels]
@@ -142,12 +288,15 @@ class AirClient(AbstractClient):
     def _raw_data(self):
         pixels = np.concatenate(self._pixel_list())
         pixels = gamma_table.GAMMA_TABLE[(pixels * 255).astype("uint8")]
-        return bytes(self._frame_number_bytes) + bytes(pixels)
+        return self._frame_number.to_bytes(
+            self._frame_number_bytes, byteorder=self._encoding_byteorder
+        ) + bytes(pixels)
 
     def show(self) -> None:
         if not self.is_connected():
             raise NotConnectedError("Client must be connected before calling show()!")
-        self._udp_socket.sendto(self._raw_data(), (self._ring_address, self._port))
+        self._connection.send(self._raw_data())
+        self._frame_number += 1
 
 
 class RenderLoop(threading.Thread):

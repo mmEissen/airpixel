@@ -12,7 +12,7 @@ setup(
     install_requires=["numpy"],
     extras_require={
         "mock": ["PyQt5"],
-        "dev": ["pytest", "pylint", "mypy", "black", "twine"],
+        "dev": ["pytest", "pytest-timeout", "pylint", "mypy", "black", "twine"],
     },
     classifiers=[
         "Programming Language :: Python :: 3.6",

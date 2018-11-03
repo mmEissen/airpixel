@@ -66,34 +66,47 @@ class TestAirDetective:
         air_detective = client.AirDetective(1)
 
         assert air_detective._port == 1
-        assert air_detective._socket is None
+
+    @pytest.mark.timeout(0.1)
+    def test_find_ring_ip(self, air_detective):
+        mock_socket = air_detective._socket
+        mock_socket.recvmsg.side_effect = [
+            (b"something", None, None, ("0.0.0.0", None)),
+            (b"LEDRing\n", None, None, ("1.1.1.1", None)),
+        ]
+
+        ip_address = air_detective.find_remote_ip()
+
+        assert ip_address == "1.1.1.1"
 
 
-    def test_bind_socket(self, air_detective, mock_socket):
-        mock_socket_object = mock.MagicMock()
-        mock_socket.return_value = mock_socket_object
+class TestConnectionSupervisor:
+    def test_init(self, connection_supervisor):
+        assert connection_supervisor.is_connected() is False
 
-        air_detective._bind_socket()
+    def test_setup(self, connection_supervisor):
+        connection_supervisor._setup()
 
-        mock_socket.assert_called_once_with(socket.AF_INET, socket.SOCK_DGRAM)
-        assert air_detective._socket is mock_socket_object
-        mock_socket_object.bind.assert_called_once_with(("", 1))
+        assert connection_supervisor._is_running
+        assert connection_supervisor._receive_socket.bind.called_once_with(("", 50000))
 
-    def test_binding_with_socket_creation_failure(self, air_detective, mock_socket):
-        mock_socket.side_effect = OSError
+    def test_send_in_correct_order(self, connection_supervisor):
+        connection_supervisor._setup()
+        connection_supervisor.send(b"first")
+        connection_supervisor.send(b"second")
+        connection_supervisor.send(b"third")
+        address = connection_supervisor._remote_address
 
-        with pytest.raises(client.AirClientConnectionError):
-            air_detective._bind_socket()
+        connection_supervisor._loop()
+        connection_supervisor._loop()
+        connection_supervisor._loop()
 
-        assert air_detective._socket is None
-
-    def test_binding_with_socket_binding_failure(self, air_detective, mock_socket):
-        mock_socket_object = mock.MagicMock()
-        mock_socket.return_value = mock_socket_object
-        mock_socket_object.bind.side_effect = OSError
-
-        with pytest.raises(client.AirClientConnectionError):
-            air_detective._bind_socket()
-
-        assert air_detective._socket is None
-        mock_socket_object.close.assert_called_once()
+        sendto_mock = connection_supervisor._send_socket.sendto
+        sendto_mock.assert_has_calls(
+            [
+                mock.call(b"first", address),
+                mock.call(b"second", address),
+                mock.call(b"third", address),
+            ]
+        )
+        assert sendto_mock.call_count == 3

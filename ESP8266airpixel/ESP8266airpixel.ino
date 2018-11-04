@@ -179,17 +179,17 @@ void checkMessages() {
   auto available = udp.parsePacket();
 
   if (available && udp.remoteIP() == connectedIP) {
-    if (available == PACKET_SIZE) {
-      readMessage();
+    switch (available) {
+      case PACKET_SIZE:
+        readMessage();
+        break;
+      case FRAME_NUMBER_BYTES:
+        readCommand();
+        break;
+      default:
+        DEBUG("Ignoring message (wrong length)");
+        break;
     }
-    if (available == FRAME_NUMBER_BYTES) {
-      readCommand();
-    }
-  }
-
-  if (available == PACKET_SIZE && udp.remoteIP() == connectedIP) {
-    lastMessage = millis();
-    readMessage();
   }
 
   if(isTimedOut()) {

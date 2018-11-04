@@ -58,5 +58,7 @@ class Qt5Client(client.AbstractClient):
         return not self._main_widget.isHidden()
 
     def show(self) -> None:
-        self._main_widget.colors = [QColor(*pixel.get_rgb()) for pixel in self._pixels]
+        self._main_widget.colors = [
+            QColor(*(pixel.get_rgb() * 255)) for pixel in self._pixels
+        ]
         self._main_widget.update()

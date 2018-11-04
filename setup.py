@@ -3,7 +3,7 @@ from setuptools import setup
 
 setup(
     name="Airpixel",
-    version="0.2.0",
+    version="0.2.1",
     url="https://github.com/mmEissen/airpixel",
     author="Moritz Eissenhauer",
     author_email="moritz.eissenhauer@gmail.com",

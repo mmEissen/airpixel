@@ -69,3 +69,47 @@ you should be able to see some output in your serial monitor:
     ADVERTISING...
         ...
 
+Usage
+-----
+
+First you will have to create a client and connect to your ESP2866:
+
+.. code-block:: python
+
+    >>> from airpixel.client import AirClient, Pixel
+    >>> client = AirClient(50000, 50001, 60)
+    >>> client.connect()
+
+``AirClient`` takes the port number of the server (configurable in ``config.h``
+and 50000 by default), the port number you want to use on your machine (chose
+any UDP port you want here), and the number of LEDs on your device (in this
+example 60)
+
+Once you are connected you can start sending data to your ESP2866:
+
+.. code-block:: python
+
+    >>> frame = [Pixel(1, 1, 1) for _ in range(60)]
+    >>> client.set_frame(frame)
+    >>> client.show()
+
+If everything works correctly, that should make your NeoPixels white.
+
+
+Development
+-----------
+
+This project comes with a Pipfile that can be used with `Pipenv <https://pipenv.readthedocs.io/en/latest/>`_.
+
+Follow the instructions on the pipenv website to install pipenv. Then run:
+
+.. code-block:: bash
+
+    $ pipenv install -d
+
+This will create a virtualenv and install all the development dependencies.
+The airpixel package will also be installed in edit mode.
+
+While there is a ``requirements.txt`` file, this is currently only used in CI.
+This whole setup is subject to change, as I will be switching over to using
+`Poetry <https://github.com/sdispater/poetry>`_ instead.

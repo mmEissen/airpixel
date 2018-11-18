@@ -47,6 +47,22 @@ class TestPixel:
     @pytest.mark.parametrize(
         "colors, expected",
         [
+            ((1, 0, 0), np.array([0, 1, 0, 0])),
+            ((0, 1, 0), np.array([1, 0, 0, 0])),
+            ((0, 0, 1), np.array([0, 0, 1, 0])),
+            ((1, 1, 1), np.array([1, 1, 1, 0])),
+        ],
+    )
+    def test_get_rgbw(self, colors, expected):
+        pixel = client.Pixel(*colors)
+
+        rgbw = pixel.get_grbw()
+
+        assert np.array_equal(rgbw, expected)
+
+    @pytest.mark.parametrize(
+        "colors, expected",
+        [
             ((1, 0, 0), np.array([1, 0, 0])),
             ((0, 1, 0), np.array([0, 1, 0])),
             ((0, 0, 1), np.array([0, 0, 1])),
@@ -57,6 +73,38 @@ class TestPixel:
         pixel = client.Pixel(*colors)
 
         rgb = pixel.get_rgb()
+
+        assert np.array_equal(rgb, expected)
+
+    @pytest.mark.parametrize(
+        "colors, expected",
+        [
+            ((1, 0, 0), np.array([0, 1, 0])),
+            ((0, 1, 0), np.array([1, 0, 0])),
+            ((0, 0, 1), np.array([0, 0, 1])),
+            ((1, 1, 1), np.array([1, 1, 1])),
+        ],
+    )
+    def test_get_rgb(self, colors, expected):
+        pixel = client.Pixel(*colors)
+
+        rgb = pixel.get_grb()
+
+        assert np.array_equal(rgb, expected)
+
+    @pytest.mark.parametrize(
+        "colors, color_method, expected",
+        [
+            ((1, 0.5, 0), client.ColorMethod.RGB, np.array([1, 0.5, 0])),
+            ((1, 0.5, 0), client.ColorMethod.RGBW, np.array([1, 0.5, 0, 0])),
+            ((1, 0.5, 0), client.ColorMethod.GRB, np.array([0.5, 1, 0])),
+            ((1, 0.5, 0), client.ColorMethod.GRBW, np.array([0.5, 1, 0, 0])),
+        ],
+    )
+    def test_get_color(self, colors, color_method, expected):
+        pixel = client.Pixel(*colors)
+
+        rgb = pixel.get_colors(color_method)
 
         assert np.array_equal(rgb, expected)
 

@@ -1,5 +1,6 @@
 import abc
 import socket
+import enum
 import time
 import threading
 import queue
@@ -30,9 +31,22 @@ class PixelOutOfRangeError(IndexError):
     pass
 
 
+class ColorMethod(enum.Enum):
+    RGB = "RGB"
+    RGBW = "RGBW"
+    GRB = "GRB"
+    GRBW = "GRBW"
+
+
 class Pixel:
     def __init__(self, red, green, blue) -> None:
         self._values = np.array((red, green, blue))
+        self._color_method_map = {
+            ColorMethod.RGB: self.get_rgb,
+            ColorMethod.RGBW: self.get_rgbw,
+            ColorMethod.GRB: self.get_grb,
+            ColorMethod.GRBW: self.get_grbw,
+        }
 
     def __repr__(self) -> str:
         red, green, blue = (int(c) for c in self.get_rgb() * 255)
@@ -43,9 +57,20 @@ class Pixel:
         # This might have a better solution:
         # http://www.mirlab.org/conference_papers/International_Conference/ICASSP%202014/papers/p1214-lee.pdf
         return np.append(self._values, [0])
+    
+    def get_grbw(self):
+        r, g, b, w = self.get_rgbw()
+        return np.array((g, r, b, w))
 
     def get_rgb(self):
         return self._values
+    
+    def get_grb(self):
+        r, g, b = self.get_rgb()
+        return np.array((g, r, b))
+    
+    def get_colors(self, color_method):
+        return self._color_method_map[color_method]()
 
 
 class AirDetective:
@@ -63,16 +88,14 @@ class AirDetective:
 
 
 class AbstractClient(abc.ABC):
-    num_colors = 4
-
-    def __init__(self, num_leds: int) -> None:
+    def __init__(self, num_leds, color_method) -> None:
         self.num_leds = num_leds
-        self.frame_size = num_leds * self.num_colors
+        self.color_method = color_method
         self._pixels = self.clear_frame()
 
-    def __repr__(self) -> str:
-        return "{}<{}X{}>".format(
-            self.__class__.__name__, self.num_colors, self.num_leds
+    def __repr__(self):
+        return "{}<{}LEDs>".format(
+            self.__class__.__name__, self.num_leds
         )
 
     def set_frame(self, frame: t.List[Pixel]) -> None:
@@ -230,7 +253,7 @@ class AirClient(AbstractClient):
     _encoding_byteorder = "big"
     _timeout_seconds = 5
     _frame_number_bytes = 8
-    _connect_atempts = 3
+    _connect_attempts = 3
     _disconnect_frame = (2 ** (8 * _frame_number_bytes) - 1).to_bytes(
         _frame_number_bytes, _encoding_byteorder
     )
@@ -241,8 +264,8 @@ class AirClient(AbstractClient):
         _frame_number_bytes, _encoding_byteorder
     )
 
-    def __init__(self, remote_port, receive_port, num_leds):
-        super().__init__(num_leds)
+    def __init__(self, remote_port, receive_port, num_leds, color_method=ColorMethod.GRBW):
+        super().__init__(num_leds, color_method)
         if remote_port == receive_port:
             raise ValueError("remote_port must be different from receive_port!")
         self._remote_port = remote_port
@@ -272,7 +295,7 @@ class AirClient(AbstractClient):
         self._connection = self._make_connection_supervisor(remote_address)
         self._connection.start()
 
-        for _ in range(self._connect_atempts):
+        for _ in range(self._connect_attempts):
             if self._attempt_connect():
                 return
         raise ConnectionFailedError("Failed to connect!")
@@ -283,7 +306,7 @@ class AirClient(AbstractClient):
         self._connection.join()
 
     def _pixel_list(self):
-        return [pixel.get_rgbw() for pixel in self._pixels]
+        return [pixel.get_colors(self.color_method) for pixel in self._pixels]
 
     def _raw_data(self):
         pixels = np.concatenate(self._pixel_list())

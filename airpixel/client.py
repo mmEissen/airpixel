@@ -52,7 +52,7 @@ class Pixel:
     def __repr__(self) -> str:
         red, green, blue = (int(c) for c in self.get_rgb() * 255)
         return "<{}:{:0>3},{:0>3},{:0>3}>".format(
-            self.__class__.__name__, red, green, blue,
+            self.__class__.__name__, red, green, blue
         )
 
     def get_rgbw(self):

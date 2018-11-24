@@ -51,7 +51,9 @@ class Pixel:
 
     def __repr__(self) -> str:
         red, green, blue = (int(c) for c in self.get_rgb() * 255)
-        return f"<{self.__class__.__name__}:{red:0>3},{green:0>3},{blue:0>3}>"
+        return "<{}:{:0>3},{:0>3},{:0>3}>".format(
+            self.__class__.__name__, red, green, blue,
+        )
 
     def get_rgbw(self):
         # For now just r, g, b, 0.
@@ -157,8 +159,8 @@ class ConnectionSupervisor(threading.Thread):
         self._receive_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self._receive_socket.settimeout(self._socket_timeout)
 
-        self._send_buffer = queue.SimpleQueue()
-        self._receive_buffer = queue.SimpleQueue()
+        self._send_buffer = queue.Queue()
+        self._receive_buffer = queue.Queue()
 
         self._heartbeat_message = heartbeat_message
         self._timeout_tracker = TimeoutTracker(timeout, self._send_heartbeat)

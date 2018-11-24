@@ -62,15 +62,15 @@ class Pixel:
         return np.append(self._values, [0])
 
     def get_grbw(self):
-        r, g, b, w = self.get_rgbw()
-        return np.array((g, r, b, w))
+        red, green, blue, white = self.get_rgbw()
+        return np.array((green, red, blue, white))
 
     def get_rgb(self):
         return self._values
 
     def get_grb(self):
-        r, g, b = self.get_rgb()
-        return np.array((g, r, b))
+        red, green, blue, white = self.get_rgbw()
+        return np.array((red, green, blue, white))
 
     def get_colors(self, color_method):
         return self._color_method_map[color_method]()

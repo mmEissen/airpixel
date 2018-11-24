@@ -271,7 +271,7 @@ class AirClient(AbstractClient):
             raise ValueError("remote_port must be different from receive_port!")
         self._remote_port = remote_port
         self._receive_port = receive_port
-        self.frame_number = 0
+        self.frame_number = 1
         self._connection = self._make_connection_supervisor("")
 
     def _make_connection_supervisor(self, remote_ip):

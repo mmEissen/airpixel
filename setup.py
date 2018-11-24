@@ -10,7 +10,7 @@ def load_long_descriprion():
 
 setup(
     name="Airpixel",
-    version="0.2.3",
+    version="0.3.0",
     url="https://github.com/mmEissen/airpixel",
     author="Moritz Eissenhauer",
     author_email="moritz.eissenhauer@gmail.com",

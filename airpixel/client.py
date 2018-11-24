@@ -1,4 +1,5 @@
 import abc
+import heapq
 import socket
 import enum
 import time
@@ -182,7 +183,7 @@ class ConnectionSupervisor(threading.Thread):
         except socket.timeout:
             return
         if ip_address == self._remote_address[0]:
-            self._receive_buffer.put_nowait(message)
+            self._receive_buffer.put_nowait((time.time(), message))
             self._timeout_tracker.notify_got_message()
 
     def _send_message_from_buffer(self):
@@ -270,7 +271,7 @@ class AirClient(AbstractClient):
             raise ValueError("remote_port must be different from receive_port!")
         self._remote_port = remote_port
         self._receive_port = receive_port
-        self._frame_number = 0
+        self.frame_number = 0
         self._connection = self._make_connection_supervisor("")
 
     def _make_connection_supervisor(self, remote_ip):
@@ -287,7 +288,7 @@ class AirClient(AbstractClient):
     def _attempt_connect(self):
         port_as_bytes = self._receive_port.to_bytes(4, self._encoding_byteorder)
         self._connection.send(self._connect_frame + port_as_bytes)
-        message = self._connection.wait_for_message(self._timeout_seconds)
+        _, message = self._connection.wait_for_message(self._timeout_seconds)
         return message == self._connect_frame
 
     def connect(self) -> None:
@@ -300,6 +301,13 @@ class AirClient(AbstractClient):
                 return
         raise ConnectionFailedError("Failed to connect!")
 
+    def get_confirmed_frames(self):
+        messages = self._connection.incoming_messages()
+        return (
+            (timestamp, int.from_bytes(message, self._encoding_byteorder))
+            for timestamp, message in messages
+        )
+
     def disconnect(self) -> None:
         self._connection.send(self._disconnect_frame)
         self._connection.stop()
@@ -311,7 +319,7 @@ class AirClient(AbstractClient):
     def _raw_data(self):
         pixels = np.concatenate(self._pixel_list())
         pixels = gamma_table.GAMMA_TABLE[(pixels * 255).astype("uint8")]
-        return self._frame_number.to_bytes(
+        return self.frame_number.to_bytes(
             self._frame_number_bytes, byteorder=self._encoding_byteorder
         ) + bytes(pixels)
 
@@ -319,7 +327,7 @@ class AirClient(AbstractClient):
         if not self.is_connected():
             raise NotConnectedError("Client must be connected before calling show()!")
         self._connection.send(self._raw_data())
-        self._frame_number += 1
+        self.frame_number += 1
 
 
 class RenderLoop(threading.Thread):
@@ -329,15 +337,37 @@ class RenderLoop(threading.Thread):
         self._update_fnc = update_fnc
         self._is_running = False
         self._air_client = air_client
+        self._sent_frames = {}
+        self._frame_deltas = []
+        self._delta_sum = 0
+        self.avg_frame_time = 0
 
     def _loop(self):
         draw_start_time = time.time()
+        self._sent_frames[self._air_client.frame_number] = draw_start_time
         new_frame = self._update_fnc(draw_start_time)
         self._air_client.set_frame(new_frame)
         self._air_client.show()
+        self._track_performance(draw_start_time)
         time_to_next_frame = self._frame_period - time.time() + draw_start_time
         if time_to_next_frame > 0:
             time.sleep(time_to_next_frame)
+
+    def _track_performance(self, now):
+        for timestamp, frame in self._air_client.get_confirmed_frames():
+            sent_time = self._sent_frames.pop(frame, None)
+            if sent_time is None:
+                continue
+            delta = timestamp - sent_time
+            heapq.heappush(self._frame_deltas, (timestamp, delta))
+            self._delta_sum += delta
+        while self._frame_deltas and self._frame_deltas[0][0] < now - 1:
+            _, delta = heapq.heappop(self._frame_deltas)
+            self._delta_sum -= delta
+        if self._frame_deltas:
+            self.avg_frame_time = self._delta_sum / len(self._frame_deltas)
+        else:
+            self.avg_frame_time = 0
 
     def run(self):
         self._air_client.connect()

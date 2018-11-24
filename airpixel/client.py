@@ -69,8 +69,8 @@ class Pixel:
         return self._values
 
     def get_grb(self):
-        red, green, blue, white = self.get_rgbw()
-        return np.array((red, green, blue, white))
+        red, green, blue = self.get_rgb()
+        return np.array((green, red, blue))
 
     def get_colors(self, color_method):
         return self._color_method_map[color_method]()

@@ -149,6 +149,7 @@ void onClientConnect() {
   DEBUG(clientReceivePort);
   sendFrameNumber(CONNECT_FRAME_NUMBER);
   lastMessage = millis();
+  lastFrameNumber = 0;
 }
 
 void onClientDisconnect() {

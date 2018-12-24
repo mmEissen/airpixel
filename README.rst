@@ -1,11 +1,9 @@
 AirPixel
 ========
 
-.. only:: web or local
-
-    .. figure:: ../images/GitHub-Mark-120px-plus.png
-        :align: center
-        :target: https://github.com/mmEissen/AirPixel
+.. figure:: ../images/GitHub-Mark-120px-plus.png
+    :align: center
+    :target: https://github.com/mmEissen/AirPixel
 
 .. figure:: https://travis-ci.com/mmEissen/airpixel.svg?branch=master
     :align: center

@@ -332,7 +332,32 @@ class AirClient(AbstractClient):
         self.frame_number += 1
 
 
-class RenderLoop(threading.Thread):
+class LoopingThread(threading.Thread, abc.ABC):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._is_running = False
+
+    @abc.abstractmethod
+    def loop(self):
+        pass
+
+    def setup(self):
+        self._is_running = True
+
+    def tear_down(self):
+        pass
+
+    def run(self):
+        self.setup()
+        while self._is_running:
+            self.loop()
+        self.tear_down()
+
+    def stop(self):
+        self._is_running = False
+
+
+class RenderLoop(LoopingThread):
     def __init__(self, air_client, update_fnc, max_framerate=120):
         super().__init__(name="render-loop-thread")
         self._frame_period = 1 / max_framerate
@@ -344,7 +369,7 @@ class RenderLoop(threading.Thread):
         self._delta_sum = 0
         self.avg_frame_time = 0
 
-    def _loop(self):
+    def loop(self):
         draw_start_time = time.time()
         self._sent_frames[self._air_client.frame_number] = draw_start_time
         new_frame = self._update_fnc(draw_start_time)
@@ -371,12 +396,9 @@ class RenderLoop(threading.Thread):
         else:
             self.avg_frame_time = 0
 
-    def run(self):
+    def setup(self):
         self._air_client.connect()
-        self._is_running = True
-        while self._is_running:
-            self._loop()
-        self._air_client.disconnect()
+        return super().setup()
 
-    def stop(self):
-        self._is_running = False
+    def tear_down(self):
+        return super().tear_down()

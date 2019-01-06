@@ -133,21 +133,21 @@ class TestConnectionSupervisor:
         assert connection_supervisor.is_connected() is False
 
     def test_setup(self, connection_supervisor):
-        connection_supervisor._setup()
+        connection_supervisor.setup()
 
         assert connection_supervisor._is_running
         assert connection_supervisor._receive_socket.bind.called_once_with(("", 50000))
 
     def test_send_in_correct_order(self, connection_supervisor):
-        connection_supervisor._setup()
+        connection_supervisor.setup()
         connection_supervisor.send(b"first")
         connection_supervisor.send(b"second")
         connection_supervisor.send(b"third")
         address = connection_supervisor._remote_address
 
-        connection_supervisor._loop()
-        connection_supervisor._loop()
-        connection_supervisor._loop()
+        connection_supervisor.loop()
+        connection_supervisor.loop()
+        connection_supervisor.loop()
 
         sendto_mock = connection_supervisor._send_socket.sendto
         sendto_mock.assert_has_calls(

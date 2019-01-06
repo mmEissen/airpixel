@@ -76,6 +76,31 @@ class Pixel:
         return self._color_method_map[color_method]()
 
 
+class LoopingThread(threading.Thread, abc.ABC):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._is_running = False
+
+    @abc.abstractmethod
+    def loop(self):
+        pass
+
+    def setup(self):
+        self._is_running = True
+
+    def tear_down(self):
+        pass
+
+    def run(self):
+        self.setup()
+        while self._is_running:
+            self.loop()
+        self.tear_down()
+
+    def stop(self):
+        self._is_running = False
+
+
 class AirDetective:
     def __init__(self, port: int) -> None:
         self._port = port
@@ -145,7 +170,7 @@ class TimeoutTracker:
             self._heartbeats_sent += 1
 
 
-class ConnectionSupervisor(threading.Thread):
+class ConnectionSupervisor(LoopingThread):
     _buffer_size = 4096
     _socket_timeout = 0.01
 
@@ -223,25 +248,22 @@ class ConnectionSupervisor(threading.Thread):
         except queue.Empty:
             return None
 
-    def _setup(self):
+    def setup(self):
         self._is_running = True
         self._receive_socket.bind(self._local_address)
 
-    def _loop(self):
+    def loop(self):
         self._read_message_to_buffer()
         self._send_message_from_buffer()
         self._check_timeout()
         self._timeout_tracker.send_heartbeat_if_needed()
 
-    def _teardown(self):
+    def tear_down(self):
         self._flush_send_buffer()
 
     def run(self):
         with self._receive_socket, self._send_socket:
-            self._setup()
-            while self._is_running:
-                self._loop()
-            self._teardown()
+            super().run()
 
     def stop(self):
         self._is_running = False
@@ -330,31 +352,6 @@ class AirClient(AbstractClient):
             raise NotConnectedError("Client must be connected before calling show()!")
         self._connection.send(self._raw_data())
         self.frame_number += 1
-
-
-class LoopingThread(threading.Thread, abc.ABC):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._is_running = False
-
-    @abc.abstractmethod
-    def loop(self):
-        pass
-
-    def setup(self):
-        self._is_running = True
-
-    def tear_down(self):
-        pass
-
-    def run(self):
-        self.setup()
-        while self._is_running:
-            self.loop()
-        self.tear_down()
-
-    def stop(self):
-        self._is_running = False
 
 
 class RenderLoop(LoopingThread):

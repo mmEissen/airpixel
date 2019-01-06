@@ -265,9 +265,6 @@ class ConnectionSupervisor(LoopingThread):
         with self._receive_socket, self._send_socket:
             super().run()
 
-    def stop(self):
-        self._is_running = False
-
     def is_connected(self):
         return self._is_running
 
@@ -398,4 +395,5 @@ class RenderLoop(LoopingThread):
         return super().setup()
 
     def tear_down(self):
+        self._air_client.disconnect()
         return super().tear_down()

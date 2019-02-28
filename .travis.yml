@@ -1,18 +1,10 @@
+dist: xenial
 language: python
 python:
 - '3.6'
-matrix:
-  include:
-  - python: 3.7
-    dist: xenial
-    sudo: true
-install:
-- pip install -r requirements.txt
-- pip install .
-script:
-- black --diff --check airpixel/ setup.py
-- pylint airpixel/ setup.py
-- pytest
+- '3.7'
+install: pip install tox-travis
+script: tox
 deploy:
   provider: pypi
   user: mmEissen

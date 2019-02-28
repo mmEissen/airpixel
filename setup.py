@@ -17,10 +17,6 @@ setup(
     description="",
     packages=["airpixel"],
     install_requires=["numpy"],
-    extras_require={
-        "mock": ["PyQt5"],
-        "dev": ["pytest", "pytest-timeout", "pylint", "mypy", "black", "twine"],
-    },
     classifiers=[
         "Programming Language :: Python :: 3.5",
         "Programming Language :: Python :: 3.6",

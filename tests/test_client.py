@@ -109,25 +109,6 @@ class TestPixel:
         assert np.array_equal(rgb, expected)
 
 
-class TestAirDetective:
-    def test_init(self):
-        air_detective = client.AirDetective(1)
-
-        assert air_detective._port == 1
-
-    @pytest.mark.timeout(0.1)
-    def test_find_ring_ip(self, air_detective):
-        mock_socket = air_detective._socket
-        mock_socket.recvmsg.side_effect = [
-            (b"something", None, None, ("0.0.0.0", None)),
-            (b"LEDRing\n", None, None, ("1.1.1.1", None)),
-        ]
-
-        ip_address = air_detective.find_remote_ip()
-
-        assert ip_address == "1.1.1.1"
-
-
 class TestConnectionSupervisor:
     def test_init(self, connection_supervisor):
         assert connection_supervisor.is_connected() is False
@@ -138,12 +119,11 @@ class TestConnectionSupervisor:
         assert connection_supervisor._is_running
         assert connection_supervisor._receive_socket.bind.called_once_with(("", 50000))
 
-    def test_send_in_correct_order(self, connection_supervisor):
+    def test_send_in_correct_order(self, connection_supervisor, remote_address):
         connection_supervisor.setup()
         connection_supervisor.send(b"first")
         connection_supervisor.send(b"second")
         connection_supervisor.send(b"third")
-        address = connection_supervisor._remote_address
 
         connection_supervisor.loop()
         connection_supervisor.loop()
@@ -152,9 +132,9 @@ class TestConnectionSupervisor:
         sendto_mock = connection_supervisor._send_socket.sendto
         sendto_mock.assert_has_calls(
             [
-                mock.call(b"first", address),
-                mock.call(b"second", address),
-                mock.call(b"third", address),
+                mock.call(b"first", remote_address),
+                mock.call(b"second", remote_address),
+                mock.call(b"third", remote_address),
             ]
         )
         assert sendto_mock.call_count == 3

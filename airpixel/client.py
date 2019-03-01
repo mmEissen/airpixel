@@ -139,13 +139,13 @@ class AbstractClient(abc.ABC):
 
 class TimeoutTracker:
     def __init__(self, timeout, send_heartbeat_fnc):
-        self._timeout = timeout
+        self.timeout = timeout
         self._last_message = float("+inf")
         self._heartbeats_sent = 0
         self._send_heartbeat = send_heartbeat_fnc
 
     def is_timed_out(self):
-        return self._last_message + self._timeout < time.time()
+        return self._last_message + self.timeout < time.time()
 
     def notify_got_message(self):
         self._last_message = time.time()
@@ -154,7 +154,7 @@ class TimeoutTracker:
     def send_heartbeat_if_needed(self):
         next_beat = (
             1 - 1 / 2 ** (self._heartbeats_sent + 1)
-        ) * self._timeout + self._last_message
+        ) * self.timeout + self._last_message
         if time.time() > next_beat:
             self._send_heartbeat()
             self._heartbeats_sent += 1
@@ -167,11 +167,12 @@ class ConnectionSupervisor(LoopingThread):
 
     def __init__(self, remote_port, receive_port, timeout, heartbeat_message):
         super().__init__(name="connection-supervisor-thread", daemon=True)
-        self._is_running = False
         self.remote_ip = ""
         self._remote_port = remote_port
         self._receive_port = receive_port
 
+        self._search_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self._search_socket.settimeout(self._socket_timeout)
         self._send_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self._receive_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self._receive_socket.settimeout(self._socket_timeout)
@@ -215,17 +216,16 @@ class ConnectionSupervisor(LoopingThread):
         while self._send_message_from_buffer():
             pass
 
-    def _find_remote_ip(self, timeout=3, broadcaster_message=b"LEDRing\n"):
-        search_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        with search_socket:
-            search_socket.bind(("", self._remote_port))
+    def _find_remote_ip(self, broadcaster_message=b"LEDRing\n"):
+        with self._search_socket:
+            self._search_socket.bind(("", self._remote_port))
             search_start_time = time.time()
             while True:
-                message, _, _, (ip_address, _) = search_socket.recvmsg(32)
+                message, _, _, (ip_address, _) = self._search_socket.recvmsg(32)
                 if message == broadcaster_message:
                     self.remote_ip = ip_address
                     return
-                if time.time() - search_start_time > timeout:
+                if time.time() - search_start_time > self._timeout_tracker.timeout:
                     raise NoBroadcasterFoundError()
 
     def send(self, message):
@@ -254,7 +254,7 @@ class ConnectionSupervisor(LoopingThread):
             return None
 
     def setup(self):
-        self._is_running = True
+        super().setup()
         self._find_remote_ip()
         self._receive_socket.bind((self._local_ip, self._receive_port))
 

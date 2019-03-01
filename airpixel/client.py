@@ -301,6 +301,7 @@ class AirClient(AbstractClient):
             ("", self._receive_port),
             self._timeout_seconds,
             self._heartbeat_frame,
+            daemon=True,
         )
 
     def is_connected(self) -> bool:

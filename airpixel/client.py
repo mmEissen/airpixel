@@ -20,6 +20,10 @@ class ConnectionFailedError(AirClientError):
     pass
 
 
+class NoBroadcasterFoundError(ConnectionFailedError):
+    pass
+
+
 class ThreadUnresponsiveError(AirClientError):
     pass
 
@@ -101,20 +105,6 @@ class LoopingThread(threading.Thread, abc.ABC):
         self._is_running = False
 
 
-class AirDetective:
-    def __init__(self, port: int) -> None:
-        self._port = port
-        self._socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-
-    def find_remote_ip(self):
-        with self._socket:
-            self._socket.bind(("", self._port))
-            message = b""
-            while message != b"LEDRing\n":
-                message, _, _, (ip_address, _) = self._socket.recvmsg(32)
-            return ip_address
-
-
 class AbstractClient(abc.ABC):
     def __init__(self, num_leds, color_method) -> None:
         self.num_leds = num_leds
@@ -173,12 +163,14 @@ class TimeoutTracker:
 class ConnectionSupervisor(LoopingThread):
     _buffer_size = 4096
     _socket_timeout = 0.01
+    _local_ip = ""
 
-    def __init__(self, remote_address, local_address, timeout, heartbeat_message):
-        super().__init__(name="connection-supervisor-thread")
+    def __init__(self, remote_port, receive_port, timeout, heartbeat_message):
+        super().__init__(name="connection-supervisor-thread", daemon=True)
         self._is_running = False
-        self._remote_address = remote_address
-        self._local_address = local_address
+        self.remote_ip = ""
+        self._remote_port = remote_port
+        self._receive_port = receive_port
 
         self._send_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self._receive_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -198,7 +190,7 @@ class ConnectionSupervisor(LoopingThread):
             self.stop()
 
     def _send_raw(self, message):
-        self._send_socket.sendto(message, self._remote_address)
+        self._send_socket.sendto(message, (self.remote_ip, self._remote_port))
 
     def _read_message_to_buffer(self):
         try:
@@ -207,7 +199,7 @@ class ConnectionSupervisor(LoopingThread):
             )
         except socket.timeout:
             return
-        if ip_address == self._remote_address[0]:
+        if ip_address == self.remote_ip:
             self._receive_buffer.put_nowait((time.time(), message))
             self._timeout_tracker.notify_got_message()
 
@@ -222,6 +214,19 @@ class ConnectionSupervisor(LoopingThread):
     def _flush_send_buffer(self):
         while self._send_message_from_buffer():
             pass
+
+    def _find_remote_ip(self, timeout=3, broadcaster_message=b"LEDRing\n"):
+        search_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        with search_socket:
+            search_socket.bind(("", self._remote_port))
+            search_start_time = time.time()
+            while True:
+                message, _, _, (ip_address, _) = search_socket.recvmsg(32)
+                if message == broadcaster_message:
+                    self.remote_ip = ip_address
+                    return
+                if time.time() - search_start_time > timeout:
+                    raise NoBroadcasterFoundError()
 
     def send(self, message):
         self._send_buffer.put_nowait(message)
@@ -250,7 +255,8 @@ class ConnectionSupervisor(LoopingThread):
 
     def setup(self):
         self._is_running = True
-        self._receive_socket.bind(self._local_address)
+        self._find_remote_ip()
+        self._receive_socket.bind((self._local_ip, self._receive_port))
 
     def loop(self):
         self._read_message_to_buffer()
@@ -293,15 +299,14 @@ class AirClient(AbstractClient):
         self._remote_port = remote_port
         self._receive_port = receive_port
         self.frame_number = 1
-        self._connection = self._make_connection_supervisor("")
+        self._connection = self._make_connection_supervisor()
 
-    def _make_connection_supervisor(self, remote_ip):
+    def _make_connection_supervisor(self):
         return ConnectionSupervisor(
-            (remote_ip, self._remote_port),
-            ("", self._receive_port),
+            self._remote_port,
+            self._receive_port,
             self._timeout_seconds,
             self._heartbeat_frame,
-            daemon=True,
         )
 
     def is_connected(self) -> bool:
@@ -314,8 +319,7 @@ class AirClient(AbstractClient):
         return message == self._connect_frame
 
     def connect(self) -> None:
-        remote_address = AirDetective(self._remote_port).find_remote_ip()
-        self._connection = self._make_connection_supervisor(remote_address)
+        self._connection = self._make_connection_supervisor()
         self._connection.start()
 
         for _ in range(self._connect_attempts):

@@ -116,8 +116,8 @@ class TestConnectionSupervisor:
     def test_setup(self, connection_supervisor):
         connection_supervisor.setup()
 
-        assert connection_supervisor._is_running
-        assert connection_supervisor._receive_socket.bind.called_once_with(("", 50000))
+        assert connection_supervisor.is_connected()
+        assert connection_supervisor.receive_socket.bind.called_once_with(("", 50000))
 
     def test_send_in_correct_order(self, connection_supervisor, remote_address):
         connection_supervisor.setup()
@@ -129,7 +129,7 @@ class TestConnectionSupervisor:
         connection_supervisor.loop()
         connection_supervisor.loop()
 
-        sendto_mock = connection_supervisor._send_socket.sendto
+        sendto_mock = connection_supervisor.send_socket.sendto
         sendto_mock.assert_has_calls(
             [
                 mock.call(b"first", remote_address),

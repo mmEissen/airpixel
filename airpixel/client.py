@@ -161,7 +161,8 @@ class TimeoutTracker:
 
 
 class ConnectionSupervisor(LoopingThread):
-    _buffer_size = 4096
+    _socket_buffer_size = 4096
+    _receive_buffer_size = 1024
     _socket_timeout = 0.01
     _local_ip = ""
 
@@ -178,7 +179,7 @@ class ConnectionSupervisor(LoopingThread):
         self._receive_socket.settimeout(self._socket_timeout)
 
         self._send_buffer = queue.Queue()
-        self._receive_buffer = queue.Queue()
+        self._receive_buffer = queue.Queue(self._receive_buffer_size)
 
         self._heartbeat_message = heartbeat_message
         self._timeout_tracker = TimeoutTracker(timeout, self._send_heartbeat)
@@ -196,7 +197,7 @@ class ConnectionSupervisor(LoopingThread):
     def _read_message_to_buffer(self):
         try:
             message, _, _, (ip_address, _) = self._receive_socket.recvmsg(
-                self._buffer_size
+                self._socket_buffer_size
             )
         except socket.timeout:
             return
@@ -324,6 +325,7 @@ class AirClient(AbstractClient):
 
         for _ in range(self._connect_attempts):
             if self._attempt_connect():
+                self.frame_number = 1
                 return
         raise ConnectionFailedError("Failed to connect!")
 

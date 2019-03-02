@@ -1,7 +1,13 @@
-__pycache__/*
+*__pycache__*
 *.egg-info
 
 ESP8266airpixel/config.h
 build/*
 dist/*
 .mypy_cache
+
+.venv
+build
+dist
+.pytest_cache
+.tox

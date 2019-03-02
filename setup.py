@@ -10,19 +10,14 @@ def load_long_descriprion():
 
 setup(
     name="Airpixel",
-    version="0.5.2",
+    version="0.6.0",
     url="https://github.com/mmEissen/airpixel",
     author="Moritz Eissenhauer",
     author_email="moritz.eissenhauer@gmail.com",
     description="",
     packages=["airpixel"],
     install_requires=["numpy"],
-    extras_require={
-        "mock": ["PyQt5"],
-        "dev": ["pytest", "pytest-timeout", "pylint", "mypy", "black", "twine"],
-    },
     classifiers=[
-        "Programming Language :: Python :: 3.5",
         "Programming Language :: Python :: 3.6",
         "Programming Language :: Python :: 3.7",
         "License :: OSI Approved :: MIT License",

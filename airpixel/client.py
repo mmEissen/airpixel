@@ -357,6 +357,10 @@ class AirClient(AbstractClient):
         self._connection.send(self._raw_data())
         self.frame_number += 1
 
+    def show_frame(self, frame) -> None:
+        self.set_frame(frame)
+        self.show()
+
 
 class RenderLoop(LoopingThread):
     def __init__(self, air_client, update_fnc, max_framerate=120):

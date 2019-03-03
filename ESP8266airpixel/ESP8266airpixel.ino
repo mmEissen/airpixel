@@ -10,13 +10,13 @@
 #define DEBUG(MSG)
 #endif
 
-
+#define NUM_LEDS LED_BUFFER_SIZE / NUM_COLORS
 #define NUM_COLORS 4
-#define FRAME_SIZE NUM_COLORS * NUM_LEDS
+#define LED_BUFFER_SIZE NUM_COLORS * NUM_LEDS
 
 #define FRAME_NUMBER_BYTES 8
 #define PORT_NUMBER_BYTES 4
-#define PACKET_SIZE (FRAME_NUMBER_BYTES + FRAME_SIZE)
+#define MAX_PACKET_SIZE (FRAME_NUMBER_BYTES + LED_BUFFER_SIZE)
 
 #define DISCONNECT_FRAME_NUMBER 0xFFFFFFFFFFFFFFFF
 #define CONNECT_FRAME_NUMBER 0xFFFFFFFFFFFFFFFE
@@ -180,16 +180,12 @@ void checkMessages() {
   auto available = udp.parsePacket();
 
   if (available && udp.remoteIP() == connectedIP) {
-    switch (available) {
-      case PACKET_SIZE:
-        readMessage();
-        break;
-      case FRAME_NUMBER_BYTES:
+    if (available == FRAME_NUMBER_BYTES) {
         readCommand();
-        break;
-      default:
-        DEBUG("Ignoring message (wrong length)");
-        break;
+    } else if (available <= MAX_PACKET_SIZE) {
+        readMessage();
+    } else {
+      DEBUG("Ignoring message (too long)");
     }
   }
 
@@ -245,7 +241,7 @@ void readMessage() {
     return;
   }
 
-  udp.read(strip.Pixels(), FRAME_SIZE);
+  udp.read(strip.Pixels(), LED_BUFFER_SIZE);
   strip.Dirty();
   strip.Show();
 

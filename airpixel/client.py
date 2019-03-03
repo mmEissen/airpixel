@@ -251,10 +251,14 @@ class ConnectionSupervisor(LoopingThread):
             self._search_socket.bind(("", self._remote_port))
             search_start_time = time.time()
             while True:
-                message, _, _, (ip_address, _) = self._search_socket.recvmsg(32)
-                if message == broadcaster_message:
-                    self.remote_ip = ip_address
-                    return
+                try:
+                    message, _, _, (ip_address, _) = self._search_socket.recvmsg(32)
+                except socket.timeout:
+                    pass
+                else:
+                    if message == broadcaster_message:
+                        self.remote_ip = ip_address
+                        return
                 if time.time() - search_start_time > self._timeout_tracker.timeout:
                     raise NoBroadcasterFoundError()
 

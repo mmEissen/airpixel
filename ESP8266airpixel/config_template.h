@@ -22,4 +22,4 @@
 //   - (LED_BUFFER_SIZE / 3) for 3 color LEDs (RGB or GRB)
 //
 // There is no significant advantage to a smaller buffer, other than reduced memory usage
-#define LED_BUFFER_SIZE 260000
+#define LED_BUFFER_SIZE 3000

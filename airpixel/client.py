@@ -230,9 +230,12 @@ class ConnectionSupervisor(LoopingThread):
             )
         except socket.timeout:
             return
-        if ip_address == self.remote_ip:
-            self._receive_buffer.put_nowait((time.time(), message))
-            self._timeout_tracker.notify_got_message()
+        if ip_address != self.remote_ip:
+            return
+        # Do something with the message like this maybe, but needs to handle buffer
+        # full.
+        # self._receive_buffer.put_nowait((time.time(), message))
+        self._timeout_tracker.notify_got_message()
 
     def _send_message_from_buffer(self) -> bool:
         try:

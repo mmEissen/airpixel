@@ -232,9 +232,11 @@ class ConnectionSupervisor(LoopingThread):
             return
         if ip_address != self.remote_ip:
             return
-        # Do something with the message like this maybe, but needs to handle buffer
-        # full.
-        # self._receive_buffer.put_nowait((time.time(), message))
+        try:
+            self._receive_buffer.put_nowait((time.time(), message))
+        except queue.Full:
+            self._receive_buffer.get_nowait()
+            self._receive_buffer.put_nowait((time.time(), message))
         self._timeout_tracker.notify_got_message()
 
     def _send_message_from_buffer(self) -> bool:

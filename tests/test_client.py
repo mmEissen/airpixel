@@ -118,23 +118,3 @@ class TestConnectionSupervisor:
 
         assert connection_supervisor.is_connected()
         assert connection_supervisor.receive_socket.bind.called_once_with(("", 50000))
-
-    def test_send_in_correct_order(self, connection_supervisor, remote_address):
-        connection_supervisor.setup()
-        connection_supervisor.send(b"first")
-        connection_supervisor.send(b"second")
-        connection_supervisor.send(b"third")
-
-        connection_supervisor.loop()
-        connection_supervisor.loop()
-        connection_supervisor.loop()
-
-        sendto_mock = connection_supervisor.send_socket.sendto
-        sendto_mock.assert_has_calls(
-            [
-                mock.call(b"first", remote_address),
-                mock.call(b"second", remote_address),
-                mock.call(b"third", remote_address),
-            ]
-        )
-        assert sendto_mock.call_count == 3

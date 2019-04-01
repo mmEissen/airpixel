@@ -240,12 +240,17 @@ class ConnectionSupervisor(LoopingThread):
         self._timeout_tracker.notify_got_message()
 
     def _send_message_from_buffer(self) -> bool:
-        try:
-            message = self._send_buffer.get_nowait()
-        except queue.Empty:
-            return False
-        self._send_raw(message)
-        return True
+        send = False
+        while True:
+            try:
+                message = self._send_buffer.get_nowait()
+            except queue.Empty:
+                break
+            else:
+                send = True
+        if send:
+            self._send_raw(message)
+        return send
 
     def _flush_send_buffer(self) -> None:
         while self._send_message_from_buffer():

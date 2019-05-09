@@ -6,6 +6,7 @@ python:
 install: pip install tox-travis
 script: tox
 deploy:
+  python: '3.7'
   provider: pypi
   user: mmEissen
   password:

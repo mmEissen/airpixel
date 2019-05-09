@@ -193,6 +193,7 @@ class ConnectionSupervisor(LoopingThread):
         receive_port: int,
         timeout: float,
         heartbeat_message: bytes,
+        search_timeout: float,
     ):
         super().__init__(name="connection-supervisor-thread", daemon=True)
         self.remote_ip = ""
@@ -212,6 +213,7 @@ class ConnectionSupervisor(LoopingThread):
 
         self._heartbeat_message = heartbeat_message
         self._timeout_tracker = TimeoutTracker(timeout, self._send_heartbeat)
+        self._search_timeout = search_timeout
 
     def _send_heartbeat(self) -> None:
         self._send_raw(self._heartbeat_message)
@@ -256,7 +258,7 @@ class ConnectionSupervisor(LoopingThread):
         while self._send_message_from_buffer():
             pass
 
-    def _find_remote_ip(self, broadcaster_message: bytes = b"LEDRing\n") -> None:
+    def _find_remote_ip(self, timeout: float = -1, broadcaster_message: bytes = b"LEDRing\n") -> None:
         with self._search_socket:
             self._search_socket.bind(("", self._remote_port))
             search_start_time = time.time()
@@ -269,7 +271,7 @@ class ConnectionSupervisor(LoopingThread):
                     if message == broadcaster_message:
                         self.remote_ip = ip_address
                         return
-                if time.time() - search_start_time > self._timeout_tracker.timeout:
+                if timeout >= 0 and time.time() - search_start_time > timeout:
                     raise NoBroadcasterFoundError()
 
     def send(self, message: bytes) -> None:
@@ -299,7 +301,7 @@ class ConnectionSupervisor(LoopingThread):
 
     def setup(self) -> None:
         super().setup()
-        self._find_remote_ip()
+        self._find_remote_ip(self._search_timeout)
         self._receive_socket.bind((self._local_ip, self._receive_port))
 
     def loop(self) -> None:
@@ -340,6 +342,7 @@ class AirClient(AbstractClient):
         receive_port: int,
         num_leds: int,
         color_method: ColorMethod = ColorMethod.GRBW,
+        search_timeout: float = -1,
     ):
         super().__init__(num_leds, color_method)
         if remote_port == receive_port:
@@ -347,6 +350,7 @@ class AirClient(AbstractClient):
         self._remote_port = remote_port
         self._receive_port = receive_port
         self.frame_number = 1
+        self._search_timeout = search_timeout
         self._connection = self._make_connection_supervisor()
 
     def _make_connection_supervisor(self) -> ConnectionSupervisor:
@@ -355,6 +359,7 @@ class AirClient(AbstractClient):
             self._receive_port,
             self._timeout_seconds,
             self._heartbeat_frame,
+            self._search_timeout,
         )
 
     def is_connected(self) -> bool:

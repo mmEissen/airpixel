@@ -198,17 +198,20 @@ class UDPConnection(LoopingThread):
     def __init__(self, config: t.Optional[UDPConfig] = None):
         super().__init__(name="udp-connection", daemon=True)
         self._message = SafeMessage()
-        self._receive_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self._receive_socket = self.make_socket()
         self._receive_socket.settimeout(0)
-        self._send_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self._send_socket = self.make_socket()
         self._timeout_tracker = TimeoutTracker(self)
         self.config = config or UDPConfig()
         self.remote_ip = ""
         self.frame_number = 1
 
+    def make_socket(self):
+        return socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
     def connect(self) -> None:
         self.remote_ip = self.find_remote_ip(self.config.advertise_delay_ms / 1000 * 3)
-        self._receive_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self._receive_socket = self.make_socket()
         self._receive_socket.bind((self.remote_ip, 0))
         receive_port = self._receive_socket.getsockname()[1]
         port_as_bytes = receive_port.to_bytes(4, UDPConstants.ENCODING_BYTEORDER)
@@ -219,7 +222,7 @@ class UDPConnection(LoopingThread):
             raise ConnectionFailedError from error
 
     def find_remote_ip(self, timeout: t.Optional[float] = None) -> str:
-        search_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        search_socket = self.make_socket()
         search_socket.settimeout(0)
         with search_socket:
             search_socket.bind(("", self.config.advertise_port))
@@ -255,9 +258,6 @@ class UDPConnection(LoopingThread):
 
     def send_bytes(self, message: bytes) -> None:
         self._message.write(message)
-
-    def setup(self) -> None:
-        super().setup()
 
     def send_message(self) -> None:
         try:
@@ -302,8 +302,8 @@ class TimeoutTracker:
     def send_heartbeat_if_needed(self) -> None:
         next_beat = (
             1 - 1 / 2 ** (self._heartbeats_sent + 1)
-        ) * self._udp_connection.config.TIMEOUT / 1000 + self._last_message
-        if time.time() > next_beat:
+        ) * self._udp_connection.config.timeout_ms / 1000 + self._last_message
+        if time.time() > next_beat and not self.is_timed_out():
             self._udp_connection.send_bytes_unsafe(UDPConstants.HEARTBEAT_FRAME)
             self._heartbeats_sent += 1
 

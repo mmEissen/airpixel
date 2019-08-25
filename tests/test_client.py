@@ -3,6 +3,7 @@
 import numpy as np
 import pytest
 import socket
+import time
 from unittest import mock
 
 import airpixel
@@ -117,22 +118,22 @@ class TestSafeMessage:
 
         with pytest.raises(message.Empty):
             message.consume()
-    
+
     @staticmethod
     def test_write_and_consume():
         message = client.SafeMessage()
-        
+
         message.write(b"hello world")
         data = message.consume()
 
         assert data == b"hello world"
         with pytest.raises(message.Empty):
             message.consume()
-    
+
     @staticmethod
     def test_write_peek():
         message = client.SafeMessage()
-        
+
         message.write(b"hello world")
         data = message.peek()
 
@@ -144,7 +145,57 @@ class TestAirPixelInterface:
     @staticmethod
     def test_show_frame(mock_connector):
         interface = client.AirPixelInterface(mock_connector)
-        
+
         interface.show_frame([airpixel.Pixel(0, 0, 0), airpixel.Pixel(0, 1, 0)])
 
         mock_connector.send_bytes.assert_called_with(b"\x00\x00\x00\xFF\x00\x00")
+
+
+class TestTimeoutTracker:
+    @staticmethod
+    def test_doesnt_send_when_initialized(
+        mock_time, mock_udp_connection, timeout_tracker
+    ):
+        timeout_tracker.send_heartbeat_if_needed()
+
+        mock_udp_connection.send_bytes_unsafe.assert_not_called()
+
+    @staticmethod
+    def test_doesnt_send_early(mock_time, mock_udp_connection, timeout_tracker):
+        timeout_tracker.notify_got_message()
+        mock_time.advance_seconds(1)
+
+        timeout_tracker.send_heartbeat_if_needed()
+
+        mock_udp_connection.send_bytes_unsafe.assert_not_called()
+
+    @staticmethod
+    def test_does_send_after_half(mock_time, mock_udp_connection, timeout_tracker):
+        timeout_tracker.notify_got_message()
+        mock_time.advance_seconds(2.6)
+
+        timeout_tracker.send_heartbeat_if_needed()
+
+        mock_udp_connection.send_bytes_unsafe.assert_called_once_with(
+            client.UDPConstants.HEARTBEAT_FRAME
+        )
+
+    @staticmethod
+    def test_does_sends_only_once(mock_time, mock_udp_connection, timeout_tracker):
+        timeout_tracker.notify_got_message()
+        mock_time.advance_seconds(2.6)
+        timeout_tracker.send_heartbeat_if_needed()
+        mock_udp_connection.send_bytes_unsafe.reset_mock()
+
+        timeout_tracker.send_heartbeat_if_needed()
+
+        mock_udp_connection.send_bytes_unsafe.assert_not_called()
+
+    @staticmethod
+    def test_doesnt_sendafter_timeout(mock_time, mock_udp_connection, timeout_tracker):
+        timeout_tracker.notify_got_message()
+        mock_time.advance_seconds(5.1)
+
+        timeout_tracker.send_heartbeat_if_needed()
+
+        mock_udp_connection.send_bytes_unsafe.assert_not_called()

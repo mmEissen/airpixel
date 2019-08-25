@@ -5,6 +5,7 @@ import pytest
 import socket
 from unittest import mock
 
+import airpixel
 from airpixel import client
 
 
@@ -109,12 +110,41 @@ class TestPixel:
         assert np.array_equal(rgb, expected)
 
 
-class TestConnectionSupervisor:
-    def test_init(self, connection_supervisor):
-        assert connection_supervisor.is_connected() is False
+class TestSafeMessage:
+    @staticmethod
+    def test_created_empty():
+        message = client.SafeMessage()
 
-    def test_setup(self, connection_supervisor):
-        connection_supervisor.setup()
+        with pytest.raises(message.Empty):
+            message.consume()
+    
+    @staticmethod
+    def test_write_and_consume():
+        message = client.SafeMessage()
+        
+        message.write(b"hello world")
+        data = message.consume()
 
-        assert connection_supervisor.is_connected()
-        assert connection_supervisor.receive_socket.bind.called_once_with(("", 50000))
+        assert data == b"hello world"
+        with pytest.raises(message.Empty):
+            message.consume()
+    
+    @staticmethod
+    def test_write_peek():
+        message = client.SafeMessage()
+        
+        message.write(b"hello world")
+        data = message.peek()
+
+        assert data == b"hello world"
+        assert message.consume() == b"hello world"
+
+
+class TestAirPixelInterface:
+    @staticmethod
+    def test_show_frame(mock_connector):
+        interface = client.AirPixelInterface(mock_connector)
+        
+        interface.show_frame([airpixel.Pixel(0, 0, 0), airpixel.Pixel(0, 1, 0)])
+
+        mock_connector.send_bytes.assert_called_with(b"\x00\x00\x00\xFF\x00\x00")

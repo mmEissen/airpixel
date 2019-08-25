@@ -1,7 +1,6 @@
 import abc
 import dataclasses
 import socket
-import logging
 import enum
 import time
 import threading
@@ -10,9 +9,6 @@ import typing as t
 import numpy as np
 
 from . import gamma_table
-
-
-log = logging.getLogger(__name__)
 
 
 class AirClientError(Exception):
@@ -114,7 +110,7 @@ class LoopingThread(threading.Thread, abc.ABC):
 
 class PixelConnector(abc.ABC):
     @abc.abstractmethod
-    def send_bytes(self, bytes_: bytes):
+    def send_bytes(self, message: bytes) -> None:
         pass
 
 
@@ -140,7 +136,7 @@ class SafeMessage:
     class Empty(Exception):
         pass
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self._message = b""
         self._lock = threading.Lock()
@@ -192,26 +188,37 @@ class UDPConstants:
     MAX_PACKET_SIZE = 65507
 
 
-class UDPConnection(LoopingThread):
+class UDPConnection(PixelConnector, LoopingThread):
     RESPONSE_TIMEOUT = 1
 
     def __init__(self, config: t.Optional[UDPConfig] = None):
         super().__init__(name="udp-connection", daemon=True)
         self._message = SafeMessage()
-        self._receive_socket = self.make_socket()
-        self._receive_socket.settimeout(0)
-        self._send_socket = self.make_socket()
+        self._receive_socket = self.make_receive_socket()
+        self._send_socket = self.make_send_socket()
         self._timeout_tracker = TimeoutTracker(self)
         self.config = config or UDPConfig()
         self.remote_ip = ""
         self.frame_number = 1
 
-    def make_socket(self):
+    @staticmethod
+    def make_receive_socket() -> socket.socket:
+        socket_ = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        socket_.settimeout(0)
+        return socket_
+
+    @staticmethod
+    def make_send_socket() -> socket.socket:
         return socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
+    def make_search_socket(self) -> socket.socket:
+        socket_ = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        socket_.settimeout(self.RESPONSE_TIMEOUT)
+        return socket_
 
     def connect(self) -> None:
         self.remote_ip = self.find_remote_ip(self.config.advertise_delay_ms / 1000 * 3)
-        self._receive_socket = self.make_socket()
+        self._receive_socket = self.make_receive_socket()
         self._receive_socket.bind((self.remote_ip, 0))
         receive_port = self._receive_socket.getsockname()[1]
         port_as_bytes = receive_port.to_bytes(4, UDPConstants.ENCODING_BYTEORDER)
@@ -222,8 +229,7 @@ class UDPConnection(LoopingThread):
             raise ConnectionFailedError from error
 
     def find_remote_ip(self, timeout: t.Optional[float] = None) -> str:
-        search_socket = self.make_socket()
-        search_socket.settimeout(0)
+        search_socket = self.make_search_socket()
         with search_socket:
             search_socket.bind(("", self.config.advertise_port))
             search_start_time = time.time()
@@ -240,18 +246,15 @@ class UDPConnection(LoopingThread):
                 if timeout is not None and time.time() - search_start_time > timeout:
                     raise NoBroadcasterFoundError()
 
-    def receive_message(self, timeout: t.Optional[float] = None) -> bytes:
-        search_start_time = time.time()
-        while True:
-            try:
-                message, *_ = self._receive_socket.recvmsg(UDPConstants.MAX_PACKET_SIZE)
-            except socket.timeout:
-                pass
-            else:
-                self._timeout_tracker.notify_got_message()
-                return message
-            if timeout is not None and time.time() - search_start_time > timeout:
-                raise ReceiveTimeoutError
+    def receive_message(self, timeout: t.Optional[float] = 0) -> bytes:
+        self._receive_socket.settimeout(timeout)
+        try:
+            message, *_ = self._receive_socket.recvmsg(UDPConstants.MAX_PACKET_SIZE)
+        except (socket.timeout, BlockingIOError) as error:
+            raise ReceiveTimeoutError from error
+        else:
+            self._timeout_tracker.notify_got_message()
+            return message
 
     def send_bytes_unsafe(self, message: bytes) -> None:
         self._send_socket.sendto(message, (self.remote_ip, self.config.remote_port))
@@ -277,10 +280,12 @@ class UDPConnection(LoopingThread):
             try:
                 self.connect()
             except ConnectionFailedError:
-                log.warning("Connection failed.")
                 return
         self.send_message()
-        self.receive_message()
+        try:
+            self.receive_message()
+        except ReceiveTimeoutError:
+            pass
 
 
 class TimeoutTracker:
@@ -310,8 +315,10 @@ class TimeoutTracker:
 
 class UDPAirPixel(AirPixelInterface):
     def __init__(
-        self, color_method=ColorMethod.GRB, udp_config: t.Optional[UDPConfig] = None
-    ):
+        self,
+        color_method: ColorMethod = ColorMethod.GRB,
+        udp_config: t.Optional[UDPConfig] = None,
+    ) -> None:
         udp_connection = UDPConnection(udp_config)
         udp_connection.start()
         super().__init__(udp_connection, color_method=color_method)

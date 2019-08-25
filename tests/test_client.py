@@ -199,3 +199,57 @@ class TestTimeoutTracker:
         timeout_tracker.send_heartbeat_if_needed()
 
         mock_udp_connection.send_bytes_unsafe.assert_not_called()
+
+
+class TestUDPConnection:
+    @staticmethod
+    @pytest.mark.timeout(0.3)
+    def test_find_remote_ip(mock_time, udp_connection, config):
+        udp_connection.mock_search_socket.recvmsg.return_value = (
+            config.advertise_message,
+            None,
+            None,
+            ("1.1.1.1", None),
+        )
+
+        remote_ip = udp_connection.find_remote_ip()
+
+        assert remote_ip == "1.1.1.1"
+
+    @staticmethod
+    @pytest.mark.timeout(0.3)
+    def test_find_remote_ip_time_out(mock_time, udp_connection, config):
+        udp_connection.mock_search_socket.recvmsg.return_value = (
+            b"some-message",
+            None,
+            None,
+            ("1.1.1.1", None),
+        )
+
+        with pytest.raises(client.NoBroadcasterFoundError):
+            udp_connection.find_remote_ip(timeout=-1)
+
+    @staticmethod
+    @pytest.mark.timeout(0.3)
+    def test_connect(mock_time, udp_connection, config):
+        udp_connection.mock_search_socket.recvmsg.return_value = (
+            config.advertise_message,
+            None,
+            None,
+            ("1.1.1.1", None),
+        )
+        udp_connection.mock_receive_socket.getsockname.return_value = ("", 255)
+        udp_connection.mock_receive_socket.recvmsg.return_value = (
+            client.UDPConstants.CONNECT_FRAME,
+            None,
+            None,
+            ("1.1.1.1", 123),
+        )
+
+        udp_connection.connect()
+
+        udp_connection.mock_send_socket.sendto.assert_called_once_with(
+            client.UDPConstants.CONNECT_FRAME + b"\x00\x00\x00\xFF",
+            ("1.1.1.1", client.UDPConfig.remote_port),
+        )
+

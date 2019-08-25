@@ -18,8 +18,27 @@ class MockTime:
 
 
 class MockUDPConnection(client.UDPConnection):
-    def make_socket(self):
-        return mock.MagicMock(spec=socket.socket)
+    def __init__(
+        self,
+        *args,
+        mock_receive_socket=None,
+        mock_send_socket=None,
+        mock_search_socket=None,
+        **kwargs,
+    ):
+        self.mock_receive_socket = mock_receive_socket
+        self.mock_send_socket = mock_send_socket
+        self.mock_search_socket = mock_search_socket
+        super().__init__(*args, **kwargs)
+
+    def make_send_socket(self):
+        return self.mock_send_socket
+
+    def make_receive_socket(self):
+        return self.mock_receive_socket
+
+    def make_search_socket(self):
+        return self.mock_search_socket
 
 
 @pytest.fixture
@@ -41,7 +60,13 @@ def mock_time():
 
 @pytest.fixture
 def udp_connection(config):
-    return MockUDPConnection(config)
+    connection = MockUDPConnection(
+        config,
+        mock_receive_socket=mock.MagicMock(spec=socket.socket),
+        mock_send_socket=mock.MagicMock(spec=socket.socket),
+        mock_search_socket=mock.MagicMock(spec=socket.socket),
+    )
+    return connection
 
 
 @pytest.fixture

@@ -1,36 +1,14 @@
 import abc
+import dataclasses
 import socket
 import enum
 import time
 import threading
-import queue
 import typing as t
 
 import numpy as np
 
 from . import gamma_table
-
-
-T = t.TypeVar("T")  # pylint: disable=invalid-name
-
-
-class QueueType(queue.Queue, t.Generic[T]):
-    def qsize(self) -> int:
-        pass
-
-    def put(
-        self, item: T, block: bool = True, timeout: t.Optional[float] = None
-    ) -> None:
-        pass
-
-    def put_nowait(self, item: T) -> None:
-        pass
-
-    def get(self, block: bool = True, timeout: t.Optional[float] = None) -> T:
-        pass
-
-    def get_nowait(self) -> T:
-        pass
 
 
 class AirClientError(Exception):
@@ -184,39 +162,45 @@ class SafeMessage:
         return self._message
 
 
+@dataclasses.dataclass
+class UDPConfig:
+    TIMEOUT_MS: int = 5000
+    ADVERTISE_DELAY_MS: int = 100
+    REMOTE_PORT: int = 50000
+    BROADCASTER_MESSAGE: bytes = b"LEDRing\n"
+
+
 class UDPConstants:
     ENCODING_BYTEORDER = "big"
     FRAME_NUMBER_BYTES = 8
-    REMOTE_PORT = 50000
-    ADVERTISE_DELAY = 0.1
-    TIMEOUT = 5
-    DISCONNECT_FRAME = (2 ** (8 * FRAME_NUMBER_BYTES) - 1).to_bytes(
+    BITS_IN_BYTE = 8
+    DISCONNECT_FRAME = (2 ** (BITS_IN_BYTE * FRAME_NUMBER_BYTES) - 1).to_bytes(
         FRAME_NUMBER_BYTES, ENCODING_BYTEORDER
     )
-    CONNECT_FRAME = (2 ** (8 * FRAME_NUMBER_BYTES) - 2).to_bytes(
+    CONNECT_FRAME = (2 ** (BITS_IN_BYTE * FRAME_NUMBER_BYTES) - 2).to_bytes(
         FRAME_NUMBER_BYTES, ENCODING_BYTEORDER
     )
-    HEARTBEAT_FRAME = (2 ** (8 * FRAME_NUMBER_BYTES) - 3).to_bytes(
+    HEARTBEAT_FRAME = (2 ** (BITS_IN_BYTE * FRAME_NUMBER_BYTES) - 3).to_bytes(
         FRAME_NUMBER_BYTES, ENCODING_BYTEORDER
     )
-    BROADCASTER_MESSAGE = b"LEDRing\n"
 
 
 class UDPConnection(LoopingThread):
     RECEIVE_BYTES = 65507
     RESPONSE_TIMEOUT = 1
 
-    def __init__(self):
+    def __init__(self, config: t.Optional[UDPConfig] = None):
         super().__init__()
         self._message = SafeMessage()
         self._receive_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self._send_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.remote_ip = ""
         self._timeout_tracker = TimeoutTracker(self)
+        self.config = config or UDPConfig()
+        self.remote_ip = ""
         self.frame_number = 1
 
     def connect(self) -> None:
-        self.remote_ip = self.find_remote_ip(UDPConstants.ADVERTISE_DELAY * 3)
+        self.remote_ip = self.find_remote_ip(self.config.ADVERTISE_DELAY * 3)
         self._receive_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self._receive_socket.bind((self.remote_ip, 0))
         receive_port = self._receive_socket.getsockname()[1]
@@ -231,7 +215,7 @@ class UDPConnection(LoopingThread):
         search_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         search_socket.settimeout(0)
         with search_socket:
-            search_socket.bind(("", UDPConstants.REMOTE_PORT))
+            search_socket.bind(("", self.config.REMOTE_PORT))
             search_start_time = time.time()
             while True:
                 try:
@@ -239,7 +223,7 @@ class UDPConnection(LoopingThread):
                 except socket.timeout:
                     pass
                 else:
-                    if message == UDPConstants.BROADCASTER_MESSAGE:
+                    if message == self.config.BROADCASTER_MESSAGE:
                         return ip_address
                 if timeout is not None and time.time() - search_start_time > timeout:
                     raise NoBroadcasterFoundError()
@@ -258,7 +242,7 @@ class UDPConnection(LoopingThread):
                 raise ReceiveTimeoutError
 
     def send_bytes_unsafe(self, message: bytes) -> None:
-        self._send_socket.sendto(message, (self.remote_ip, UDPConstants.REMOTE_PORT))
+        self._send_socket.sendto(message, (self.remote_ip, self.config.REMOTE_PORT))
 
     def send_bytes(self, message: bytes) -> None:
         self._message.write(message)
@@ -293,7 +277,7 @@ class TimeoutTracker:
         self._udp_connection = udp_connection
 
     def is_timed_out(self) -> bool:
-        return self._last_message + UDPConstants.TIMEOUT < time.time()
+        return self._last_message + self._udp_connection.config.TIMEOUT < time.time()
 
     def notify_got_message(self) -> None:
         self._last_message = time.time()
@@ -302,21 +286,16 @@ class TimeoutTracker:
     def send_heartbeat_if_needed(self) -> None:
         next_beat = (
             1 - 1 / 2 ** (self._heartbeats_sent + 1)
-        ) * UDPConstants.TIMEOUT + self._last_message
+        ) * self._udp_connection.config.TIMEOUT + self._last_message
         if time.time() > next_beat:
             self._udp_connection.send_bytes_unsafe(UDPConstants.HEARTBEAT_FRAME)
             self._heartbeats_sent += 1
 
 
-class UDPConnector(PixelConnector):
-    def __init__(self):
-        self.connection = UDPConnection()
-        self.connection.start()
-
-    def send_bytes(self, bytes_):
-        return self.connection.send_bytes(bytes_)
-
-
 class UDPAirPixel(AirPixelInterface):
-    def __init__(self, color_method=ColorMethod.GRB):
-        super().__init__(UDPConnector(), color_method=color_method)
+    def __init__(
+        self, color_method=ColorMethod.GRB, udp_config: t.Optional[UDPConfig] = None
+    ):
+        udp_connection = UDPConnection(udp_config)
+        udp_connection.start()
+        super().__init__(udp_connection, color_method=color_method)

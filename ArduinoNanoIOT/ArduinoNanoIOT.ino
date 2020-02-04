@@ -1,8 +1,7 @@
 #include <SPI.h>
 #include <WiFiNINA.h>
 
-#include "lib/constants.h"
-#include "lib/state.h"
+#include <state.h>
 
 
 GlobalState globalState;
@@ -18,8 +17,12 @@ void setup() {
         DEBUG("Please upgrade the firmware");
     }
 
+    DEBUG("STARTING");
     globalState = GlobalState();
     currentState = globalState.nextState();
+    currentState->onEnter();
+    DEBUG(currentState->name());
+    DEBUG("SETUP COMPLETE");
 }
 
 
@@ -34,6 +37,7 @@ void loop() {
         delete currentState;
         currentState = nextState;
         currentState->onEnter();
+        DEBUG(currentState->name());
     }
 
     currentState->performAction();

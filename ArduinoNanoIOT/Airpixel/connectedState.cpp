@@ -2,17 +2,18 @@
 
 #include "constants.h"
 #include "connectedState.h"
-#include "disconnectedState.h"
+#include "tcpEstablishedState.h"
 
 
 State* ConnectedState::checkTransition() {
     if (_globalState.tcpClient().connected()) {
-        // return new ConnectedState(_globalState);
+        return new TcpEstablishedState(_globalState);
     }
     return this;
 }
 
 void ConnectedState::performAction() {
-    DEBUG("Attempting to establish a TCP connection");
+    DEBUG(SERVER_TCP_IP);
+    DEBUG(SERVER_TCP_PORT);
     _globalState.tcpClient().connect(SERVER_TCP_IP, SERVER_TCP_PORT);
 }

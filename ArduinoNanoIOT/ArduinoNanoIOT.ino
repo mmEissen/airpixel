@@ -1,8 +1,5 @@
-#include <SPI.h>
-#include <WiFiNINA.h>
-
 #include <state.h>
-
+#include <activeState.h>
 
 GlobalState globalState;
 State* currentState;
@@ -18,7 +15,6 @@ void setup() {
     }
 
     DEBUG("STARTING");
-    globalState = GlobalState();
     currentState = globalState.nextState();
     currentState->onEnter();
     DEBUG(currentState->name());
@@ -33,11 +29,15 @@ void loop() {
     }
 
     if (nextState != currentState) {
+        DEBUG("CHANGING STATES");
         currentState->onExit();
+        DEBUG(currentState->name());
+        DEBUG("^^ EXIT  ^^");
         delete currentState;
         currentState = nextState;
-        currentState->onEnter();
+        DEBUG("vv ENTER vv");
         DEBUG(currentState->name());
+        currentState->onEnter();
     }
 
     currentState->performAction();

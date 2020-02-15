@@ -12,18 +12,18 @@ State* ActiveState::checkTransition() {
 void ActiveState::performAction() {
     int available = 0;
     uint64_t highestFrameNumber = 0;
-    while (available = _udp.parsePacket()) {
+    while (available = _globalState.udp().parsePacket()) {
         uint64_t frameNumber = 0;
         for (int i = 0; i < CHARS_IN_UINT64 ; ++i) {
             frameNumber << sizeof(char);
-            frameNumber += _udp.read();
+            frameNumber += _globalState.udp().read();
         }
         if (frameNumber > highestFrameNumber) {
-            _udp.read(_pixels.Pixels(), available - CHARS_IN_UINT64);
-            _pixels.Dirty();
+            _globalState.udp().read(_globalState.pixels().Pixels(), available - CHARS_IN_UINT64);
+            _globalState.pixels().Dirty();
         }
     }
     if (available) {
-        _pixels.Show();
+        _globalState.pixels().Show();
     }
 }

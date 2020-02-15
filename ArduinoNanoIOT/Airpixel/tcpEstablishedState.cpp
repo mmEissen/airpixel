@@ -1,5 +1,6 @@
 #include "tcpEstablishedState.h"
 
+#include <SPI.h>
 #include <WiFiNINA.h>
 
 #include "constants.h"

@@ -2,11 +2,10 @@ import subprocess
 import asyncio
 import logging
 import json
+import socket
 
+logging.basicConfig(level=logging.DEBUG)
 log = logging.getLogger(__name__)
-
-SERVER_PORT = 8888
-SERVER_ADDRESS = "127.0.0.1"
 
 
 def load_config(file_name):
@@ -54,7 +53,6 @@ class DeviceConfiguration:
 
 
 class SupervisorProtocol(asyncio.Protocol):
-    DEVICE_ID_SIZE = 8
     PORT_SIZE = 4
     REGISTER_BYTES = PORT_SIZE + DEVICE_ID_SIZE
     SEPPERATOR = b"\n"
@@ -67,13 +65,20 @@ class SupervisorProtocol(asyncio.Protocol):
         self._current_package = b""
 
     def connection_made(self, transport):
+        log.info("New connection")
         self.transport = transport
+        sock = self.transport.get_extra_info('socket')
+        TCP_KEEPALIVE = 0x10
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+        sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 1)
+        sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 1)
+        sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPCNT, 3)
 
     def register_device(self, registration_bytes):
         if len(registration_bytes) != self.REGISTER_BYTES:
             return None
-        device_id = registration_bytes[: self.DEVICE_ID_SIZE]
-        port = registration_bytes[self.DEVICE_ID_SIZE :]
+        port = registration_bytes[ : self.PORT_SIZE]
+        device_id = registration_bytes[self.PORT_SIZE :]
         return self._device_configuration.launch_from_config(
             device_id, port, self.close
         )
@@ -88,16 +93,24 @@ class SupervisorProtocol(asyncio.Protocol):
         )
         if not packages:
             return
+        log.info("Received %r", packages)
         self._subprocess = self._subprocess or self.register_device(packages[0])
         if self._subprocess is None:
             self.transport.close()
 
     def connection_lost(self, exc):
-        self._subprocess.close()
+        if self._subprocess is not None:
+            self._subprocess.close()
+        if exc is not None:
+            log.warn("Connection lost %r", exc)
+        else:
+            log.info("Connection closed")
 
 
 async def main():
     config = load_config("airpixel.json")
+
+    log.info(config)
 
     loop = asyncio.get_running_loop()
     device_config = DeviceConfiguration(config["devices"])

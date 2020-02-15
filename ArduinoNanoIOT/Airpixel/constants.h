@@ -12,5 +12,5 @@
 #define CHARS_IN_UINT64 ( sizeof(uint64_t) / sizeof(char) )
 
 #define UDP_MAX_PACKET_SIZE 65507
-#define PIXEL_COUNT ( UDP_MAX_PACKET_SIZE / 3 )
+#define PIXEL_COUNT 4
 

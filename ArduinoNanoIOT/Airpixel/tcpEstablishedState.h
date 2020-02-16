@@ -10,7 +10,5 @@ class TcpEstablishedState : public State {
         State * checkTransition() override;
         void performAction() override;
 
-        #if DEBUG_MODE
         const char * name() override { return "TCP Established State"; }
-        #endif
 };

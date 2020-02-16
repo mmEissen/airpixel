@@ -1,5 +1,5 @@
 #include <state.h>
-#include <activeState.h>
+#include <cstring>
 
 GlobalState globalState;
 State* currentState;
@@ -14,7 +14,9 @@ void setup() {
         DEBUG("Please upgrade the firmware");
     }
 
+
     DEBUG("STARTING");
+    globalState.begin();
     currentState = globalState.nextState();
     currentState->onEnter();
     DEBUG(currentState->name());
@@ -28,16 +30,15 @@ void loop() {
         nextState = currentState->checkTransition();
     }
 
-    if (nextState != currentState) {
-        DEBUG("CHANGING STATES");
-        currentState->onExit();
+    if (strcmp(nextState->name(), currentState->name())) {
+        DEBUG("CHANGING STATES:");
         DEBUG(currentState->name());
-        DEBUG("^^ EXIT  ^^");
+        DEBUG(nextState->name());
+        currentState->onExit();
         delete currentState;
         currentState = nextState;
-        DEBUG("vv ENTER vv");
-        DEBUG(currentState->name());
         currentState->onEnter();
+        DEBUG("STATE CHANGE COMPLETE");
     }
 
     currentState->performAction();

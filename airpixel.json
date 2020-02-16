@@ -1,5 +1,7 @@
 {
     "address": "192.168.2.126",
     "port": 50000,
-    "devices": {}
+    "devices": {
+        "ring": ".venv/bin/python blink.py {ip_address} {port}"
+    }
 }

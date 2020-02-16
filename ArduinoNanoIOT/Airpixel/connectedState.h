@@ -8,7 +8,5 @@ class ConnectedState : public State {
         State* checkTransition() override;
         void performAction() override;
 
-        #if DEBUG_MODE
         const char * name() override { return "Connected State"; }
-        #endif
 };

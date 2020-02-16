@@ -16,8 +16,8 @@ void TcpEstablishedState::performAction() {
         (char) (LOCAL_UDP_PORT >> sizeof(char)),
         (char) LOCAL_UDP_PORT,
     };
-    _globalState.tcpClient().write(DEVICE_ID);
     _globalState.tcpClient().write(port);
+    _globalState.tcpClient().write(DEVICE_ID);
     _globalState.tcpClient().write('\n');
     _globalState.tcpClient().flush();
 }

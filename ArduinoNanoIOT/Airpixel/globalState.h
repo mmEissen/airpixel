@@ -15,7 +15,9 @@ class GlobalState {
             : _tcpClient()
             , _udp()
             , _pixels(PIXEL_COUNT, LED_PIN)
-        {
+        {}
+
+        void begin() {
             _pixels.Begin();
             _udp.begin(LOCAL_UDP_PORT);
         }

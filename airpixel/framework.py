@@ -22,9 +22,10 @@ class DeviceProcessProtocol(asyncio.SubprocessProtocol):
         self._on_exit()
 
 
-def _subprocess_factory(protocol, *args):
-    loop = asyncio.get_running_loop()
-    loop.subprocess_exec(protocol, *args)
+def _subprocess_factory(command):
+    return subprocess.Popen(
+        command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+    )
 
 
 class DeviceConfiguration:
@@ -32,29 +33,28 @@ class DeviceConfiguration:
         self._config = config
         self._subprocess_factory = subprocess_factory
 
-    def launch_from_config(self, device_id, streaming_port, exit_callback=lambda: None):
+    def launch_from_config(self, device_id, ip_address, streaming_port):
         try:
             base_command = self._config[device_id]
         except KeyError:
             log.warning("No process configured for device ID %s", device_id)
-            return
+            return None
         try:
-            base_command = base_command.format(port=str(streaming_port, "utf-8"))
+            base_command = base_command.format(
+                ip_address=ip_address, port=str(streaming_port)
+            )
         except KeyError:
             log.warning(
                 "Invalid format string for subprocess command for device %s", device_id
             )
-            return
+            return None
+        log.info("Launching process for device %s: `%s`", device_id, base_command)
         command = base_command.split()
-        transport, _ = self._subprocess_factory(
-            lambda: DeviceProcessProtocol(on_exit=exit_callback), command
-        )
-        return transport
+        return self._subprocess_factory(command)
 
 
 class SupervisorProtocol(asyncio.Protocol):
-    PORT_SIZE = 4
-    REGISTER_BYTES = PORT_SIZE + DEVICE_ID_SIZE
+    PORT_SIZE = 2
     SEPPERATOR = b"\n"
 
     def __init__(self, device_configuration):
@@ -67,20 +67,18 @@ class SupervisorProtocol(asyncio.Protocol):
     def connection_made(self, transport):
         log.info("New connection")
         self.transport = transport
-        sock = self.transport.get_extra_info('socket')
-        TCP_KEEPALIVE = 0x10
+        sock = self.transport.get_extra_info("socket")
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
         sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 1)
         sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 1)
         sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPCNT, 3)
 
     def register_device(self, registration_bytes):
-        if len(registration_bytes) != self.REGISTER_BYTES:
-            return None
-        port = registration_bytes[ : self.PORT_SIZE]
-        device_id = registration_bytes[self.PORT_SIZE :]
+        port = int.from_bytes(registration_bytes[: self.PORT_SIZE], "little")
+        device_id = str(registration_bytes[self.PORT_SIZE :], "utf-8")
+        ip_address = self.transport.get_extra_info("peername")
         return self._device_configuration.launch_from_config(
-            device_id, port, self.close
+            device_id, ip_address, port
         )
 
     def close(self):
@@ -100,9 +98,9 @@ class SupervisorProtocol(asyncio.Protocol):
 
     def connection_lost(self, exc):
         if self._subprocess is not None:
-            self._subprocess.close()
+            self._subprocess.terminate()
         if exc is not None:
-            log.warn("Connection lost %r", exc)
+            log.warning("Connection lost %r", exc)
         else:
             log.info("Connection closed")
 

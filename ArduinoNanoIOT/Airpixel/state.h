@@ -11,9 +11,7 @@ class State {
         virtual void onEnter() {};
         virtual void onExit() {};
 
-        #if DEBUG_MODE
-        virtual const char * name() { return "Some State"; };
-        #endif
+        virtual const char * name() = 0;
     protected:
         GlobalState & _globalState;
 };

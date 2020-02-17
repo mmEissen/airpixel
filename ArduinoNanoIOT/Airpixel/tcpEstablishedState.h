@@ -11,4 +11,5 @@ class TcpEstablishedState : public State {
         void performAction() override;
 
         const char * name() override { return "TCP Established State"; }
+        virtual const uint8_t statusLed() override { return 2; }
 };

@@ -16,9 +16,14 @@ void setup() {
 
 
     DEBUG("STARTING");
+    pinMode(STATUS_1_PIN, OUTPUT);
+    pinMode(STATUS_2_PIN, OUTPUT);
+
     globalState.begin();
     currentState = globalState.nextState();
     currentState->onEnter();
+    digitalWrite(STATUS_1_PIN, currentState->statusLed() & 1);
+    digitalWrite(STATUS_2_PIN, currentState->statusLed() & 2);
     DEBUG(currentState->name());
     DEBUG("SETUP COMPLETE");
 }
@@ -43,6 +48,9 @@ void loop() {
     else {
         delete nextState;
     }
+
+    digitalWrite(STATUS_1_PIN, currentState->statusLed() & 1);
+    digitalWrite(STATUS_2_PIN, currentState->statusLed() & 2);
 
     currentState->performAction();
 }

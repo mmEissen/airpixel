@@ -12,6 +12,7 @@ class State {
         virtual void onExit() {};
 
         virtual const char * name() = 0;
+        virtual const uint8_t statusLed() = 0;
     protected:
         GlobalState & _globalState;
 };

@@ -13,6 +13,7 @@ class DisconnectedState : public State {
         void performAction() override;
         
         const char * name() override { return "Disconnected State"; }
+        virtual const uint8_t statusLed() override { return 3; }
     private:
         bool is_connecting;
 };

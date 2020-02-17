@@ -9,4 +9,5 @@ class ConnectedState : public State {
         void performAction() override;
 
         const char * name() override { return "Connected State"; }
+        virtual const uint8_t statusLed() override { return 1; }
 };

@@ -1,5 +1,5 @@
 {
-    "address": "192.168.2.126",
+    "address": "0",
     "port": 50000,
     "devices": {
         "ring": "python blink.py {ip_address} {port}"

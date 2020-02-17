@@ -45,12 +45,15 @@ void loop() {
         currentState->onEnter();
         DEBUG("STATE CHANGE COMPLETE");
     }
-    else {
-        delete nextState;
-    }
 
     digitalWrite(STATUS_1_PIN, currentState->statusLed() & 1);
     digitalWrite(STATUS_2_PIN, currentState->statusLed() & 2);
 
+    auto start = millis();
     currentState->performAction();
+    auto end = millis();
+    if (end - start > 10) {
+        DEBUG("SLOW LOOP");
+        DEBUG(end - start);
+    }
 }

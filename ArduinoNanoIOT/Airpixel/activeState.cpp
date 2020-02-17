@@ -18,7 +18,7 @@ void ActiveState::performAction() {
         }
         uint64_t frameNumber = 0;
         for (int i = 0; i < CHARS_IN_UINT64 ; ++i) {
-            frameNumber << 8;
+            frameNumber = frameNumber << 8;
             auto c = _globalState.udp().read();
             frameNumber += c;
         }

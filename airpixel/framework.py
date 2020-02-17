@@ -3,6 +3,7 @@ import asyncio
 import logging
 import json
 import socket
+import shlex
 
 logging.basicConfig(level=logging.DEBUG)
 log = logging.getLogger(__name__)
@@ -24,7 +25,7 @@ class DeviceProcessProtocol(asyncio.SubprocessProtocol):
 
 def _subprocess_factory(command):
     return subprocess.Popen(
-        command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        command, text=True, shell=True
     )
 
 
@@ -49,8 +50,7 @@ class DeviceConfiguration:
             )
             return None
         log.info("Launching process for device %s: `%s`", device_id, base_command)
-        command = base_command.split()
-        return self._subprocess_factory(command)
+        return self._subprocess_factory(base_command)
 
 
 class SupervisorProtocol(asyncio.Protocol):
@@ -67,16 +67,11 @@ class SupervisorProtocol(asyncio.Protocol):
     def connection_made(self, transport):
         log.info("New connection")
         self.transport = transport
-        sock = self.transport.get_extra_info("socket")
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
-        sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 1)
-        sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 1)
-        sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPCNT, 3)
 
     def register_device(self, registration_bytes):
-        port = int.from_bytes(registration_bytes[: self.PORT_SIZE], "little")
+        port = int.from_bytes(registration_bytes[: self.PORT_SIZE], "big")
         device_id = str(registration_bytes[self.PORT_SIZE :], "utf-8")
-        ip_address = self.transport.get_extra_info("peername")
+        ip_address, _ = self.transport.get_extra_info("peername")
         return self._device_configuration.launch_from_config(
             device_id, ip_address, port
         )
@@ -100,7 +95,10 @@ class SupervisorProtocol(asyncio.Protocol):
         if self._subprocess is not None:
             self._subprocess.terminate()
         if exc is not None:
-            log.warning("Connection lost %r", exc)
+            try:
+                raise exc
+            except Exception as e:
+                log.exception("Connection lost:")
         else:
             log.info("Connection closed")
 

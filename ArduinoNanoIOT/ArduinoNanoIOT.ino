@@ -40,6 +40,9 @@ void loop() {
         currentState->onEnter();
         DEBUG("STATE CHANGE COMPLETE");
     }
+    else {
+        delete nextState;
+    }
 
     currentState->performAction();
 }

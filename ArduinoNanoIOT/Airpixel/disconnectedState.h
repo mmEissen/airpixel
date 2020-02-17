@@ -5,11 +5,14 @@
 
 class DisconnectedState : public State {
     public:
-        using State::State;
+        DisconnectedState(GlobalState & globalState) 
+            : State(globalState)
+            , is_connecting(false)
+        {}
         State* checkTransition() override;
         void performAction() override;
-
-        #if DEBUG_MODE
+        
         const char * name() override { return "Disconnected State"; }
-        #endif
+    private:
+        bool is_connecting;
 };

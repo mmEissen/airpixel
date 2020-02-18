@@ -7,7 +7,9 @@ class ActiveState : public State {
     public:
         ActiveState(GlobalState & globalState) 
             : State(globalState)
-            , highestFrameNumber(0)
+            , _highestFrameNumber(0)
+            , _lastMessage(0)
+            , _lastResponse(0)
         {}
         State* checkTransition() override;
         void performAction() override;
@@ -15,5 +17,7 @@ class ActiveState : public State {
         const char * name() override { return "Active State"; }
         virtual const uint8_t statusLed() override { return 0; }
     private:
-        uint64_t highestFrameNumber;
+        uint64_t _highestFrameNumber;
+        unsigned long _lastMessage;
+        unsigned long _lastResponse;
 };

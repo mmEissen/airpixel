@@ -71,7 +71,10 @@ class AirClient:
         self.color_method = color_method
 
     def send_bytes(self, message: bytes) -> None:
-        self.socket.sendto(message, (self.remote_ip, self.remote_port))
+        try:
+            self.socket.sendto(message, (self.remote_ip, self.remote_port))
+        except OSError:
+            pass
 
     def show_frame(self, frame: t.List[Pixel]) -> None:
         raw_pixels = np.concatenate(
@@ -83,3 +86,4 @@ class AirClient:
         )
         self.send_bytes(frame_number + bytes(raw_pixels))
         self.frame_number += 1
+

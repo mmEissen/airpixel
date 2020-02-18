@@ -1,6 +1,7 @@
 {
-    "address": "0",
+    "address": "0.0.0.0",
     "port": 50000,
+    "udp_port": 50000,
     "devices": {
         "ring": "python blink.py {ip_address} {port}"
     }

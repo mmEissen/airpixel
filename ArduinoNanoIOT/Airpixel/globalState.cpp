@@ -11,8 +11,5 @@ State* GlobalState::nextState() {
     if (WiFi.status() != WL_CONNECTED) {
         return new DisconnectedState(*this);
     }
-    if (!_tcpClient.connected()) {
-        return new ConnectedState(*this);
-    }
     return NULL;
 }

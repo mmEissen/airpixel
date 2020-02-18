@@ -24,6 +24,7 @@ void DisconnectedState::performAction() {
     else {
         DEBUG("Attempting to connect to WPA SSID: ");
         DEBUG(WIFI_SSID);
+        DEBUG(status);
         WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
         is_connecting = true;
     }

@@ -4,9 +4,14 @@ import logging
 import json
 import socket
 import shlex
+import dataclasses
+import typing as t
+import time
 
 logging.basicConfig(level=logging.DEBUG)
 log = logging.getLogger(__name__)
+
+BYTEORDER = "big"
 
 
 def load_config(file_name):
@@ -14,27 +19,65 @@ def load_config(file_name):
         return json.load(file_)
 
 
-class DeviceProcessProtocol(asyncio.SubprocessProtocol):
-    def __init__(self, on_exit):
+class KeepaliveProtocol(asyncio.DatagramProtocol):
+    def __init__(self, process_registration):
         super().__init__()
-        self._on_exit = on_exit
+        self._process_registration = process_registration
 
-    def process_exited(self):
-        self._on_exit()
+    def datagram_received(self, data, addr):
+        ip_address, _ = addr
+        self._process_registration.response_from(ip_address)
 
 
 def _subprocess_factory(command):
-    return subprocess.Popen(
-        command, text=True, shell=True
-    )
+    return subprocess.Popen(command, text=True, shell=True)
 
 
-class DeviceConfiguration:
-    def __init__(self, config, subprocess_factory=_subprocess_factory):
+@dataclasses.dataclass
+class ProcessMeta:
+    process: t.Any
+    ip_address: str
+    device_id: str
+    last_response: float
+
+
+class ProcessRegistration:
+    def __init__(self, config, subprocess_factory=_subprocess_factory, timeout=2):
         self._config = config
         self._subprocess_factory = subprocess_factory
+        self._timeout = timeout
+        self._processes = {}
 
-    def launch_from_config(self, device_id, ip_address, streaming_port):
+    def kill_process(self, ip_address):
+        if ip_address not in self._processes:
+            return
+        self._processes[ip_address].process.kill()
+        self._processes[ip_address].process.communicate()
+        del self._processes[ip_address]
+
+    def response_from(self, ip_address):
+        try:
+            self._processes[ip_address].last_response = time.time()
+        except KeyError:
+            pass
+
+    def purge_processes(self):
+        now = time.time()
+        dead_processes = {
+            ip
+            for ip, process in self._processes.items()
+            if now - process.last_response >= self._timeout
+        }
+        for ip_address in dead_processes:
+            log.info("Killing process for %s.", ip_address)
+            self.kill_process(ip_address)
+
+    async def purge_forever(self):
+        while True:
+            self.purge_processes()
+            await asyncio.sleep(self._timeout / 4)
+
+    def launch_for(self, device_id, ip_address, streaming_port):
         try:
             base_command = self._config[device_id]
         except KeyError:
@@ -50,35 +93,35 @@ class DeviceConfiguration:
             )
             return None
         log.info("Launching process for device %s: `%s`", device_id, base_command)
-        return self._subprocess_factory(base_command)
+        self.kill_process(ip_address)
+        self._processes[ip_address] = ProcessMeta(
+            self._subprocess_factory(base_command), ip_address, device_id, time.time()
+        )
 
 
-class SupervisorProtocol(asyncio.Protocol):
+class ConnectionProtocol(asyncio.Protocol):
     PORT_SIZE = 2
     SEPPERATOR = b"\n"
 
-    def __init__(self, device_configuration):
+    def __init__(self, process_registration, response_port):
         super().__init__()
-        self._device_configuration = device_configuration
+        self._process_registration = process_registration
         self.transport = None
-        self._subprocess = None
         self._current_package = b""
+        self.response_port = response_port
 
     def connection_made(self, transport):
         log.info("New connection")
         self.transport = transport
-
-    def register_device(self, registration_bytes):
-        port = int.from_bytes(registration_bytes[: self.PORT_SIZE], "big")
-        device_id = str(registration_bytes[self.PORT_SIZE :], "utf-8")
-        ip_address, _ = self.transport.get_extra_info("peername")
-        return self._device_configuration.launch_from_config(
-            device_id, ip_address, port
+        self.transport.write(
+            int.to_bytes(self.response_port, self.PORT_SIZE, BYTEORDER)
         )
 
-    def close(self):
-        if self.transport is not None:
-            self.transport.close()
+    def register_device(self, registration_bytes):
+        port = int.from_bytes(registration_bytes[: self.PORT_SIZE], BYTEORDER)
+        device_id = str(registration_bytes[self.PORT_SIZE :], "utf-8")
+        ip_address, _ = self.transport.get_extra_info("peername")
+        self._process_registration.launch_for(device_id, ip_address, port)
 
     def data_received(self, data):
         *packages, self._current_package = (self._current_package + data).split(
@@ -87,20 +130,8 @@ class SupervisorProtocol(asyncio.Protocol):
         if not packages:
             return
         log.info("Received %r", packages)
-        self._subprocess = self._subprocess or self.register_device(packages[0])
-        if self._subprocess is None:
-            self.transport.close()
-
-    def connection_lost(self, exc):
-        if self._subprocess is not None:
-            self._subprocess.terminate()
-        if exc is not None:
-            try:
-                raise exc
-            except Exception as e:
-                log.exception("Connection lost:")
-        else:
-            log.info("Connection closed")
+        self.register_device(packages[0])
+        self.transport.close()
 
 
 async def main():
@@ -109,13 +140,21 @@ async def main():
     log.info(config)
 
     loop = asyncio.get_running_loop()
-    device_config = DeviceConfiguration(config["devices"])
+    process_registration = ProcessRegistration(config["devices"])
+    transport, protocol = await loop.create_datagram_endpoint(
+        lambda: KeepaliveProtocol(process_registration),
+        local_addr=(config["address"], config["udp_port"]),
+        family=socket.AF_INET,
+    )
+
     server = await loop.create_server(
-        lambda: SupervisorProtocol(device_config), config["address"], config["port"]
+        lambda: ConnectionProtocol(process_registration, config["udp_port"]),
+        config["address"],
+        config["port"],
     )
 
     async with server:
-        await server.serve_forever()
+        await asyncio.gather(server.serve_forever(), process_registration.purge_forever())
 
 
 if __name__ == "__main__":

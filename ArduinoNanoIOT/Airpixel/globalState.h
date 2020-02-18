@@ -24,11 +24,15 @@ class GlobalState {
 
         State* nextState();
 
+        void setResponsePort(uint16_t value) { _responsePort = value; }
+
         WiFiClient & tcpClient() { return _tcpClient; }
         NeoPixelBus<Neo3Elements, NeoArm800KbpsMethod> & pixels() { return _pixels; }
         WiFiUDP & udp() { return _udp; }
+        uint16_t responsePort() { return _responsePort; }
     protected:
         WiFiClient _tcpClient;
         NeoPixelBus<Neo3Elements, NeoArm800KbpsMethod> _pixels;
         WiFiUDP _udp;
+        uint16_t _responsePort;
 };

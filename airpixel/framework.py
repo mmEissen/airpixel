@@ -1,12 +1,12 @@
-import subprocess
 import asyncio
-import logging
-import json
-import socket
-import shlex
 import dataclasses
-import typing as t
+import json
+import logging
+import socket
+import subprocess
 import time
+import typing as t
+
 
 logging.basicConfig(level=logging.DEBUG)
 log = logging.getLogger(__name__)
@@ -157,7 +157,9 @@ async def main():
     )
 
     async with server:
-        await asyncio.gather(server.serve_forever(), process_registration.purge_forever())
+        await asyncio.gather(
+            server.serve_forever(), process_registration.purge_forever()
+        )
 
 
 if __name__ == "__main__":

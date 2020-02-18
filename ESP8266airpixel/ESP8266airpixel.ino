@@ -60,7 +60,7 @@ void advertise() {
   IPAddress subnet(myIp & subnetMask);
   IPAddress broadcast(myIp | ~subnetMask);
   udp.beginPacket(broadcast, PORT);
-  udp.write("LEDRing\n", 8);
+  udp.write(ADVERTISING_MESSAGE, ADVERTISING_MESSAGE_LENGTH);
   udp.endPacket();
 }
 

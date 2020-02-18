@@ -1,5 +1,8 @@
 #include "activeState.h"
 
+#include <string>
+
+#include <SPI.h>
 #include <WiFiNINA.h>
 
 #include "constants.h"
@@ -20,7 +23,9 @@ void ActiveState::performAction() {
     if (millis() - _lastResponse > HEARTBEAT_DELTA) {
         _lastResponse = millis();
         _globalState.udp().beginPacket(SERVER_TCP_IP, _globalState.responsePort());
-        _globalState.udp().write("ping");
+        _globalState.udp().write(std::to_string(_receivedFrames).c_str());
+        _globalState.udp().write(" ");
+        _globalState.udp().write(std::to_string(_shownFrames).c_str());
         _globalState.udp().endPacket();
     }
 
@@ -30,6 +35,7 @@ void ActiveState::performAction() {
         if (!chars_available) {
             break;
         }
+        ++_receivedFrames;
         uint64_t frameNumber = 0;
         for (int i = 0; i < CHARS_IN_UINT64 ; ++i) {
             frameNumber = frameNumber << 8;
@@ -39,11 +45,12 @@ void ActiveState::performAction() {
         if (frameNumber > _highestFrameNumber) {
             _globalState.udp().read(_globalState.pixels().Pixels(), chars_available - CHARS_IN_UINT64);
             _globalState.pixels().Dirty();
-            available = true;
             _highestFrameNumber = frameNumber;
+            available = true;
         }
     }
     if (available) {
+        ++_shownFrames;
         _lastMessage = millis();
         _globalState.pixels().Show();
         DEBUG((uint32_t) _highestFrameNumber % 0xFFFFFFFF);

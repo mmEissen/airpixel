@@ -5,11 +5,15 @@
 
 #include "constants.h"
 #include "activeState.h"
+#include "connectedState.h"
 
 
 State* TcpEstablishedState::checkTransition() {
     if (_charCount == 2) {
         return new ActiveState(_globalState);
+    }
+    if (_charCount > 2) {
+        return new ConnectedState(_globalState);
     }
     return this;
 }

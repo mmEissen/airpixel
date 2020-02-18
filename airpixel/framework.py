@@ -26,11 +26,14 @@ class KeepaliveProtocol(asyncio.DatagramProtocol):
 
     def datagram_received(self, data, addr):
         ip_address, _ = addr
+        frames, rendered = (int(n) for n in str(data, "utf-8").split())
+        if frames:
+            log.info("%s: %s %s %s", ip_address, frames, rendered, rendered / frames)
         self._process_registration.response_from(ip_address)
 
 
 def _subprocess_factory(command):
-    return subprocess.Popen(command, text=True, shell=True)
+    return subprocess.Popen("exec " + command, text=True, shell=True)
 
 
 @dataclasses.dataclass
@@ -42,7 +45,7 @@ class ProcessMeta:
 
 
 class ProcessRegistration:
-    def __init__(self, config, subprocess_factory=_subprocess_factory, timeout=2):
+    def __init__(self, config, subprocess_factory=_subprocess_factory, timeout=3):
         self._config = config
         self._subprocess_factory = subprocess_factory
         self._timeout = timeout

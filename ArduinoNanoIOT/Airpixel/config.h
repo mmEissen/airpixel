@@ -2,7 +2,7 @@
 
 // Set to 1 for debug output on the serial port
 // Set to 0 for improved performance (roughly x6 improvement in maximum refresh rate)
-#define DEBUG_MODE 1
+#define DEBUG_MODE 0
 
 #define SERVER_TCP_IP "10.42.0.1"
 #define SERVER_TCP_PORT 50000

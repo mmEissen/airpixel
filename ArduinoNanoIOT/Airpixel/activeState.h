@@ -10,6 +10,8 @@ class ActiveState : public State {
             , _highestFrameNumber(0)
             , _lastMessage(0)
             , _lastResponse(0)
+            , _receivedFrames(0)
+            , _shownFrames(0)
         {}
         State* checkTransition() override;
         void performAction() override;
@@ -20,4 +22,6 @@ class ActiveState : public State {
         uint64_t _highestFrameNumber;
         unsigned long _lastMessage;
         unsigned long _lastResponse;
+        unsigned long _receivedFrames;
+        unsigned long _shownFrames;
 };

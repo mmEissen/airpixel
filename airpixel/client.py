@@ -60,6 +60,9 @@ class Pixel:
     def __init__(self, red: float, green: float, blue: float) -> None:
         self.values = np.array((red, green, blue))
 
+    def __repr__(self):
+        return "P{:.2}|{:.2}|{:.2}".format(float(self.values[0]), float(self.values[1]), float(self.values[2]))
+
 
 class LoopingThread(threading.Thread, abc.ABC):
     def __init__(self, *args: t.Any, **kwargs: t.Any):

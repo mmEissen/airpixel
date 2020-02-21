@@ -4,11 +4,11 @@
 // Set to 0 for improved performance (roughly x6 improvement in maximum refresh rate)
 #define DEBUG_MODE 0
 
-#define SERVER_TCP_IP "10.42.0.1"
+#define SERVER_TCP_IP "192.168.4.1"
 #define SERVER_TCP_PORT 50000
 
-#define WIFI_SSID "moritz-ideapad"
-#define WIFI_PASSWORD "YHVuyA3z"
+#define WIFI_SSID "AIRPIXEL"
+#define WIFI_PASSWORD "34D6MasF8B2M2ws8"
 
 #define LED_PIN 2
 #define STATUS_1_PIN 3

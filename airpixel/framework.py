@@ -1,3 +1,4 @@
+import atexit
 import asyncio
 import dataclasses
 import json
@@ -50,6 +51,7 @@ class ProcessRegistration:
         self._subprocess_factory = subprocess_factory
         self._timeout = timeout
         self._processes = {}
+        atexit.register(self.cleanup)
 
     def kill_process(self, ip_address):
         if ip_address not in self._processes:
@@ -100,6 +102,10 @@ class ProcessRegistration:
         self._processes[ip_address] = ProcessMeta(
             self._subprocess_factory(base_command), ip_address, device_id, time.time()
         )
+
+    def cleanup(self):
+        for process_meta in self._processes.values():
+            process_meta.process.kill()
 
 
 class ConnectionProtocol(asyncio.Protocol):

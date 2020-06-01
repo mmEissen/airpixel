@@ -91,7 +91,7 @@ class LoopingThread(threading.Thread, abc.ABC):
 
 class AirClient:
     def __init__(
-        self, remote_ip=str, remote_port=int, color_method: ColorMethod = ColorMethodGRB
+        self, remote_ip: str, remote_port: int, color_method: ColorMethod = ColorMethodGRB
     ) -> None:
         self.remote_ip = remote_ip
         self.remote_port = remote_port

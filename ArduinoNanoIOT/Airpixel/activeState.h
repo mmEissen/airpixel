@@ -15,6 +15,8 @@ class ActiveState : public State {
         {}
         State* checkTransition() override;
         void performAction() override;
+        void onEnter() override;
+        void onExit() override;
 
         const char * name() override { return "Active State"; }
         virtual const uint8_t statusLed() override { return 0; }

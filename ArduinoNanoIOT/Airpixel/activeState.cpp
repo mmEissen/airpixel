@@ -4,6 +4,7 @@
 
 #include <SPI.h>
 #include <WiFiNINA.h>
+#include "Sodaq_wdt.h"
 
 #include "constants.h"
 #include "connectedState.h"
@@ -19,7 +20,17 @@ State* ActiveState::checkTransition() {
     return this;
 }
 
+
+void ActiveState::onEnter() {
+    sodaq_wdt_enable(WDT_PERIOD_1DIV8);
+}
+
+void ActiveState::onExit() {
+    sodaq_wdt_disable();
+}
+
 void ActiveState::performAction() {
+    sodaq_wdt_reset();
     if (millis() - _lastResponse > HEARTBEAT_DELTA) {
         digitalWrite(STATUS_1_PIN, true);
         _lastResponse = millis();

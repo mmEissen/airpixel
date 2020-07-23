@@ -4,9 +4,9 @@ import typing as t
 import threading
 import time
 
-import numpy as np
+import numpy as np  # type: ignore
 
-from . import gamma_table
+from airpixel import gamma_table
 
 
 class UDPConstants:
@@ -61,7 +61,9 @@ class Pixel:
         self.values = np.array((red, green, blue))
 
     def __repr__(self):
-        return "P{:.2}|{:.2}|{:.2}".format(float(self.values[0]), float(self.values[1]), float(self.values[2]))
+        return "P{:.2}|{:.2}|{:.2}".format(
+            float(self.values[0]), float(self.values[1]), float(self.values[2])
+        )
 
 
 class LoopingThread(threading.Thread, abc.ABC):
@@ -91,7 +93,10 @@ class LoopingThread(threading.Thread, abc.ABC):
 
 class AirClient:
     def __init__(
-        self, remote_ip: str, remote_port: int, color_method: ColorMethod = ColorMethodGRB
+        self,
+        remote_ip: str,
+        remote_port: int,
+        color_method: t.Type[ColorMethod] = ColorMethodGRB,
     ) -> None:
         self.remote_ip = remote_ip
         self.remote_port = remote_port
@@ -122,7 +127,10 @@ class AutoClient(LoopingThread):
     SLEEP = 0.035
 
     def begin(
-        self, remote_ip=str, remote_port=int, color_method: ColorMethod = ColorMethodGRB
+        self,
+        remote_ip=str,
+        remote_port=int,
+        color_method: t.Type[ColorMethod] = ColorMethodGRB,
     ) -> None:
         self._client = AirClient(remote_ip, remote_port, color_method)
         self._frame = [Pixel(0, 0, 0)]

@@ -30,7 +30,7 @@ class KeepaliveProtocol(asyncio.DatagramProtocol):
         frames, rendered = (int(n) for n in str(data, "utf-8").split())
         if frames:
             log.info(
-                "%s: Sent: %s Shown: %s Ratio: %s",
+                "%s: Received: %s Shown: %s Ratio: %s",
                 ip_address,
                 frames,
                 rendered,

@@ -1,4 +1,4 @@
-import numpy as np
+import numpy as np  # type: ignore
 
 # Taken from https://learn.adafruit.com/led-tricks-gamma-correction/the-quick-fix
 GAMMA_TABLE = np.array(

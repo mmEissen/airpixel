@@ -1,3 +1,4 @@
+import asyncio
 import subprocess
 from unittest import mock
 
@@ -118,6 +119,16 @@ def f_keepalive_protocol(mock_process_registration):
     return framework.KeepaliveProtocol(mock_process_registration)
 
 
+@pytest.fixture(name="mock_transport")
+def f_mock_transport():
+    return mock.AsyncMock(spec=asyncio.Transport)
+
+
+@pytest.fixture(name="connection_protocol")
+def f_connection_protocol(mock_process_registration, udp_port):
+    return framework.ConnectionProtocol(mock_process_registration, udp_port)
+
+
 class TestProcessRegistration:
     @staticmethod
     def test_launch_for_launches_process(
@@ -221,5 +232,18 @@ class TestKeepaliveProtocol:
 
         mock_process_registration.response_from.assert_called_once_with(
             device_ip_address
+        )
+
+
+class TestConnectionProtocol:
+    @staticmethod
+    def test_connection_made(connection_protocol, mock_transport, udp_port):
+        connection_protocol.connection_made(mock_transport)
+
+        assert connection_protocol.transport is mock_transport
+        mock_transport.write.assert_called_once_with(
+            int.to_bytes(
+                udp_port, framework.ConnectionProtocol.PORT_SIZE, framework.BYTEORDER
+            )
         )
 

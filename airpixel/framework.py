@@ -59,7 +59,7 @@ class ProcessRegistration:
         self._processes = {}
         atexit.register(self.cleanup)
 
-    def kill_process(self, ip_address):
+    def _kill_process(self, ip_address):
         if ip_address not in self._processes:
             return
         self._processes[ip_address].process.kill()
@@ -81,7 +81,7 @@ class ProcessRegistration:
         }
         for ip_address in dead_processes:
             log.info("Killing process for %s.", ip_address)
-            self.kill_process(ip_address)
+            self._kill_process(ip_address)
 
     async def purge_forever(self):
         while True:
@@ -93,7 +93,7 @@ class ProcessRegistration:
             base_command = self._config[device_id]
         except KeyError:
             log.warning("No process configured for device ID %s", device_id)
-            return None
+            return
         try:
             base_command = base_command.format(
                 ip_address=ip_address, port=str(streaming_port)
@@ -102,9 +102,9 @@ class ProcessRegistration:
             log.warning(
                 "Invalid format string for subprocess command for device %s", device_id
             )
-            return None
+            return
         log.info("Launching process for device %s: `%s`", device_id, base_command)
-        self.kill_process(ip_address)
+        self._kill_process(ip_address)
         self._processes[ip_address] = ProcessMeta(
             self._subprocess_factory(base_command), ip_address, device_id, time.time()
         )

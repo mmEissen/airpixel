@@ -41,6 +41,24 @@ def sh_command_template_():
     return "some command {ip_address} {port}"
 
 
+@pytest.fixture(name="registration_timeout")
+def registration_timeout_():
+    return 5
+
+
+@pytest.fixture(name="clock")
+def clock_():
+    class MockClock:
+        def __init__(self):
+            self.time = 1_000_000_000
+
+        def __call__(self):
+            return self.time
+
+    with mock.patch("time.time", new=MockClock()) as clock:
+        yield clock
+
+
 @pytest.fixture(name="device_config")
 def device_config_(device_name, sh_command_template):
     return {device_name: sh_command_template}
@@ -67,8 +85,12 @@ def subprocess_factory_(mock_subprocess):
 
 
 @pytest.fixture(name="process_registration")
-def process_registration_(device_config, subprocess_factory):
-    return framework.ProcessRegistration(device_config, subprocess_factory=subprocess_factory)
+def process_registration_(device_config, subprocess_factory, registration_timeout):
+    return framework.ProcessRegistration(
+        device_config,
+        subprocess_factory=subprocess_factory,
+        timeout=registration_timeout,
+    )
 
 
 class TestProcessRegistration:
@@ -81,14 +103,14 @@ class TestProcessRegistration:
         device_udp_port,
         sh_command_template,
     ):
-        process_registration.launch_for(
-            device_name, device_ip_address, device_udp_port
-        )
+        process_registration.launch_for(device_name, device_ip_address, device_udp_port)
 
         subprocess_factory.assert_called_once_with(
-            sh_command_template.format(ip_address=device_ip_address, port=device_udp_port)
+            sh_command_template.format(
+                ip_address=device_ip_address, port=device_udp_port
+            )
         )
-    
+
     @staticmethod
     def test_launch_for_kills_previously_launched_process(
         process_registration,
@@ -96,15 +118,64 @@ class TestProcessRegistration:
         mock_subprocess,
         device_ip_address,
         device_udp_port,
-        sh_command_template,
     ):
-        process_registration.launch_for(
-            device_name, device_ip_address, device_udp_port
-        )
+        process_registration.launch_for(device_name, device_ip_address, device_udp_port)
 
-        process_registration.launch_for(
-            device_name, device_ip_address, device_udp_port
-        )
+        process_registration.launch_for(device_name, device_ip_address, device_udp_port)
 
         mock_subprocess.kill.assert_called_once()
         mock_subprocess.communicate.assert_called_once()
+
+    @staticmethod
+    def test_purge_processes_kills_old_processes(
+        process_registration,
+        device_name,
+        device_ip_address,
+        device_udp_port,
+        mock_subprocess,
+        clock,
+        registration_timeout,
+    ):
+        process_registration.launch_for(device_name, device_ip_address, device_udp_port)
+        clock.time += registration_timeout + 1
+
+        process_registration.purge_processes()
+
+        mock_subprocess.kill.assert_called_once()
+        mock_subprocess.communicate.assert_called_once()
+
+    @staticmethod
+    def test_purge_processes_does_not_kill_recently_active(
+        process_registration,
+        device_name,
+        device_ip_address,
+        device_udp_port,
+        mock_subprocess,
+        clock,
+        registration_timeout,
+    ):
+        process_registration.launch_for(device_name, device_ip_address, device_udp_port)
+        clock.time += registration_timeout + 1
+        process_registration.response_from(device_ip_address)
+        clock.time += registration_timeout / 2
+
+        process_registration.purge_processes()
+
+        mock_subprocess.kill.assert_not_called()
+
+    @staticmethod
+    def test_purge_processes_does_not_kill_recently_created(
+        process_registration,
+        device_name,
+        device_ip_address,
+        device_udp_port,
+        mock_subprocess,
+        clock,
+        registration_timeout,
+    ):
+        process_registration.launch_for(device_name, device_ip_address, device_udp_port)
+        clock.time += registration_timeout / 2
+
+        process_registration.purge_processes()
+
+        mock_subprocess.kill.assert_not_called()

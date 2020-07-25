@@ -85,6 +85,23 @@ def f_subprocess_factory(mock_subprocess):
     return mock.MagicMock(return_value=mock_subprocess)
 
 
+@pytest.fixture(name="connected_connection_protocol")
+def f_connected_connection_protocol(connection_protocol, mock_transport):
+    connection_protocol.connection_made(mock_transport)
+    return connection_protocol
+
+
+@pytest.fixture(name="device_registration_data")
+def f_device_registration_data(device_name, device_udp_port):
+    return (
+        int.to_bytes(
+            device_udp_port, framework.ConnectionProtocol.PORT_SIZE, framework.BYTEORDER
+        )
+        + bytes(device_name, "utf-8")
+        + framework.ConnectionProtocol.SEPPERATOR
+    )
+
+
 @pytest.fixture(name="process_registration")
 def f_process_registration(device_config, subprocess_factory, registration_timeout):
     return framework.ProcessRegistration(
@@ -245,5 +262,63 @@ class TestConnectionProtocol:
             int.to_bytes(
                 udp_port, framework.ConnectionProtocol.PORT_SIZE, framework.BYTEORDER
             )
+        )
+
+    @staticmethod
+    @pytest.mark.parametrize("process_registration", [mock.MagicMock()])
+    def test_data_received_with_no_separator_does_nothing(
+        connection_protocol, mock_transport, udp_port, process_registration
+    ):
+        connection_protocol.data_received(b"noseparator")
+
+        mock_transport.close.assert_not_called()
+        process_registration.launch_for.assert_not_called()
+
+    @staticmethod
+    def test_data_received_launches_process_and_closes_connection(
+        connected_connection_protocol,
+        mock_transport,
+        mock_process_registration,
+        device_ip_address,
+        device_udp_port,
+        device_name,
+        device_registration_data,
+    ):
+        mock_transport.get_extra_info.return_value = (
+            device_ip_address,
+            device_udp_port,
+        )
+
+        connected_connection_protocol.data_received(device_registration_data)
+
+        mock_transport.close.assert_called_once()
+        mock_process_registration.launch_for.assert_called_once_with(
+            device_name, device_ip_address, device_udp_port
+        )
+    
+
+    @staticmethod
+    def test_data_received_launches_process_and_closes_connection_if_message_was_split(
+        connected_connection_protocol,
+        mock_transport,
+        mock_process_registration,
+        device_ip_address,
+        device_udp_port,
+        device_name,
+        device_registration_data,
+    ):
+        mock_transport.get_extra_info.return_value = (
+            device_ip_address,
+            device_udp_port,
+        )
+        part1 = device_registration_data[:2]
+        part2 = device_registration_data[2:]
+        connected_connection_protocol.data_received(part1)
+
+        connected_connection_protocol.data_received(part2)
+
+        mock_transport.close.assert_called_once()
+        mock_process_registration.launch_for.assert_called_once_with(
+            device_name, device_ip_address, device_udp_port
         )
 

@@ -132,7 +132,7 @@ class ConnectionProtocol(asyncio.Protocol):
             int.to_bytes(self.response_port, self.PORT_SIZE, BYTEORDER)
         )
 
-    def register_device(self, registration_bytes):
+    def _register_device(self, registration_bytes):
         port = int.from_bytes(registration_bytes[: self.PORT_SIZE], BYTEORDER)
         device_id = str(registration_bytes[self.PORT_SIZE :], "utf-8")
         ip_address, _ = self.transport.get_extra_info("peername")
@@ -145,7 +145,7 @@ class ConnectionProtocol(asyncio.Protocol):
         if not packages:
             return
         log.info("Received %r", packages)
-        self.register_device(packages[0])
+        self._register_device(packages[0])
         self.transport.close()
 
 

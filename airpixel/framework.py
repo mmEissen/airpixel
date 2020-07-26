@@ -128,15 +128,15 @@ class ConnectionProtocol(asyncio.Protocol):
     def connection_made(self, transport):
         log.info("New connection")
         self.transport = transport
-        self.transport.write(
-            int.to_bytes(self.response_port, self.PORT_SIZE, BYTEORDER)
-        )
 
     def _register_device(self, registration_bytes):
         port = int.from_bytes(registration_bytes[: self.PORT_SIZE], BYTEORDER)
         device_id = str(registration_bytes[self.PORT_SIZE :], "utf-8")
         ip_address, _ = self.transport.get_extra_info("peername")
         self._process_registration.launch_for(device_id, ip_address, port)
+        self.transport.write(
+            int.to_bytes(self.response_port, self.PORT_SIZE, BYTEORDER)
+        )
 
     def data_received(self, data):
         *packages, self._current_package = (self._current_package + data).split(

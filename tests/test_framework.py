@@ -258,11 +258,6 @@ class TestConnectionProtocol:
         connection_protocol.connection_made(mock_transport)
 
         assert connection_protocol.transport is mock_transport
-        mock_transport.write.assert_called_once_with(
-            int.to_bytes(
-                udp_port, framework.ConnectionProtocol.PORT_SIZE, framework.BYTEORDER
-            )
-        )
 
     @staticmethod
     @pytest.mark.parametrize("process_registration", [mock.MagicMock()])
@@ -281,6 +276,7 @@ class TestConnectionProtocol:
         mock_process_registration,
         device_ip_address,
         device_udp_port,
+        udp_port,
         device_name,
         device_registration_data,
     ):
@@ -295,7 +291,11 @@ class TestConnectionProtocol:
         mock_process_registration.launch_for.assert_called_once_with(
             device_name, device_ip_address, device_udp_port
         )
-    
+        mock_transport.write.assert_called_once_with(
+            int.to_bytes(
+                udp_port, framework.ConnectionProtocol.PORT_SIZE, framework.BYTEORDER
+            )
+        )
 
     @staticmethod
     def test_data_received_launches_process_and_closes_connection_if_message_was_split(

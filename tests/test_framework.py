@@ -322,3 +322,74 @@ class TestConnectionProtocol:
             device_name, device_ip_address, device_udp_port
         )
 
+
+@pytest.fixture(name="double_keyed_map")
+def f_double_keyed_map():
+    return framework.DoubleKeyedMapping()
+
+
+@pytest.fixture(name="populated_double_map")
+def f_populated_double_map(double_keyed_map):
+    double_keyed_map.put("l1", "r1", 10)
+    double_keyed_map.put("l1", "r2", 20)
+    double_keyed_map.put("l2", "r2", 30)
+    double_keyed_map.put("l2", "r3", 40)
+    return double_keyed_map
+
+
+class TestDoubleKeyedMap:
+    @staticmethod
+    def test_put(double_keyed_map):
+        double_keyed_map.put("left", ("righ",), 10)
+
+    @staticmethod
+    def test_get(populated_double_map):
+        values = populated_double_map.get("l1", "r1")
+
+        assert values == [10]
+
+    @staticmethod
+    @pytest.mark.parametrize(
+        "key, value",
+        [
+            pytest.param("l1", [10, 20]),
+            pytest.param("l2", [30, 40]),
+            pytest.param("xx", []),
+        ],
+    )
+    def test_get_left(populated_double_map, key, value):
+        result = populated_double_map.get_left(key)
+
+        assert sorted(result) == value
+
+    @staticmethod
+    @pytest.mark.parametrize(
+        "key, value",
+        [
+            pytest.param("r1", [10]),
+            pytest.param("r2", [20, 30]),
+            pytest.param("r3", [40]),
+            pytest.param("xx", []),
+        ],
+    )
+    def test_get_right(populated_double_map, key, value):
+        result = populated_double_map.get_right(key)
+
+        assert sorted(result) == value
+
+    @staticmethod
+    def test_delete_left(populated_double_map):
+        populated_double_map.delete_left("l1")
+
+        assert populated_double_map.get_left("l1") == []
+        assert populated_double_map.get_right("r1") == []
+        assert populated_double_map.get_right("r2") == [30]
+    
+    @staticmethod
+    def test_delete_right(populated_double_map):
+        populated_double_map.delete_right("r2")
+
+        assert populated_double_map.get_left("l1") == [10]
+        assert populated_double_map.get_left("l2") == [40]
+        assert populated_double_map.get_right("r1") == [10]
+        assert populated_double_map.get_right("r2") == []

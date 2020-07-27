@@ -1,5 +1,6 @@
 import atexit
 import asyncio
+import collections
 import dataclasses
 import json
 import logging
@@ -37,6 +38,90 @@ class KeepaliveProtocol(asyncio.DatagramProtocol):
                 rendered / frames,
             )
         self._process_registration.response_from(ip_address)
+
+
+
+
+_KL = t.TypeVar("_KL")
+_KR = t.TypeVar("_KR")
+_V = t.TypeVar("_V")
+
+
+class DoubleKeyedMapping(t.Generic[_KL, _KR, _V]):
+    @dataclasses.dataclass
+    class LSpec:
+        indexes: t.Set[int] = dataclasses.field(default_factory=set)
+        assoc_keys: t.Set[_KR] = dataclasses.field(default_factory=set)
+
+    @dataclasses.dataclass
+    class RSpec:
+        indexes: t.Set[int] = dataclasses.field(default_factory=set)
+        assoc_keys: t.Set[_KL] = dataclasses.field(default_factory=set)
+
+    def __init__(self):
+        self._values: t.Dict[int, _V] = {}
+        self._left_map: t.DefaultDict[
+            _KL, DoubleKeyedMapping[_KL, _KR, _v].LSpec
+        ] = collections.defaultdict(self.LSpec)
+        self._right_map: t.DefaultDict[
+            _KR, DoubleKeyedMapping[_KL, _KR, _v].RSpec
+        ] = collections.defaultdict(self.RSpec)
+        self._counter = 0
+
+    def _get_indexed(self, indexes: t.Set[int]) -> t.List[_V]:
+        return [self._values[i] for i in indexes]
+
+    def _left_indexes(self, key: _KL) -> t.Set[int]:
+        return self._left_map.get(key, self.LSpec()).indexes
+
+    def _right_indexes(self, key: _KL) -> t.Set[int]:
+        return self._right_map.get(key, self.RSpec()).indexes
+
+    def get_left(self, key: _KL) -> t.List[_V]:
+        return self._get_indexed(self._left_indexes(key))
+
+    def get_right(self, key: _KR) -> t.List[_V]:
+        return self._get_indexed(self._right_indexes(key))
+
+    def get(self, left_key: _KL, right_key: _KR) -> t.List[_V]:
+        indexes = self._left_indexes(left_key) & self._right_indexes(right_key)
+        return self._get_indexed(indexes)
+
+    def put(self, left_key: _KL, right_key: _KR, value: _V) -> None:
+        self._values[self._counter] = value
+        self._left_map[left_key].indexes.add(self._counter)
+        self._left_map[left_key].assoc_keys.add(right_key)
+        self._right_map[right_key].indexes.add(self._counter)
+        self._right_map[right_key].assoc_keys.add(left_key)
+        self._counter += 1
+
+    def delete_left(self, key: _KL) -> None:
+        if key not in self._left_map:
+            raise KeyError
+        spec = self._left_map.get(key, self.LSpec())
+        for assoc_key in spec.assoc_keys:
+            r_spec = self._right_map[assoc_key]
+            r_spec.assoc_keys.remove(key)
+            r_spec.indexes -= spec.indexes
+            if not r_spec.assoc_keys:
+                del self._right_map[assoc_key]
+        for index in spec.indexes:
+            del self._values[index]
+        del self._left_map[key]
+
+    def delete_right(self, key: _KR) -> None:
+        if key not in self._right_map:
+            raise KeyError
+        spec = self._right_map.get(key, self.RSpec())
+        for assoc_key in spec.assoc_keys:
+            l_spec = self._left_map[assoc_key]
+            l_spec.assoc_keys.remove(key)
+            l_spec.indexes -= spec.indexes
+            if not l_spec.assoc_keys:
+                del self._left_map[assoc_key]
+        for index in spec.indexes:
+            del self._values[index]
+        del self._right_map[key]
 
 
 def _subprocess_factory(command):

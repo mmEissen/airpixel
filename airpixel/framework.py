@@ -40,6 +40,22 @@ class KeepaliveProtocol(asyncio.DatagramProtocol):
         self._process_registration.response_from(ip_address)
 
 
+class MonitorDispachProtocol(asyncio.DatagramProtocol):
+    def __init__(self, monitoring_server):
+        super().__init__()
+        self._monitoring_server = monitoring_server
+
+    def datagram_received(self, data, addr):
+        ip_address, _ = addr
+
+
+class MonitorKeepaliveProtocol(asyncio.DatagramProtocol):
+    def __init__(self, monitoring_server):
+        super().__init__()
+        self._monitoring_server = monitoring_server
+
+    def datagram_received(self, data, addr):
+        pass
 
 
 _KL = t.TypeVar("_KL")
@@ -122,6 +138,26 @@ class DoubleKeyedMapping(t.Generic[_KL, _KR, _V]):
         for index in spec.indexes:
             del self._values[index]
         del self._right_map[key]
+
+
+class MonitoringServer:
+    def __init__(self, subscription_timeout=3):
+        pass
+
+    def dispatch_to_monitors(self, stream_id, data):
+        pass
+
+    def subscribe_to_stream(self, target_address, stream_id):
+        pass
+
+    def unsubscribe_from_stream(self, target_address, stream_id):
+        pass
+
+    def purge_subscriptions(self):
+        pass
+
+    async def purge_forever(self):
+        pass
 
 
 def _subprocess_factory(command):

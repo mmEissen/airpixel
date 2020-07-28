@@ -99,11 +99,23 @@ class DoubleKeyedMapping(t.Generic[_KL, _KR, _V]):
     def get_right(self, key: _KR) -> t.List[_V]:
         return self._get_indexed(self._right_indexes(key))
 
-    def get(self, left_key: _KL, right_key: _KR) -> t.List[_V]:
+    def _get_index(self, left_key: _KL, right_key: _KR) -> int:
         indexes = self._left_indexes(left_key) & self._right_indexes(right_key)
-        return self._get_indexed(indexes)
+        if not indexes:
+            raise KeyError
+        return indexes.pop()
+
+    def get(self, left_key: _KL, right_key: _KR) -> _V:
+        return self._values[self._get_index(left_key, right_key)]
 
     def put(self, left_key: _KL, right_key: _KR, value: _V) -> None:
+        try:
+            index = self._get_index(left_key, right_key)
+        except KeyError:
+            pass
+        else:
+            self._values[index] = value
+            return
         self._values[self._counter] = value
         self._left_map[left_key].indexes.add(self._counter)
         self._left_map[left_key].assoc_keys.add(right_key)
@@ -139,25 +151,57 @@ class DoubleKeyedMapping(t.Generic[_KL, _KR, _V]):
             del self._values[index]
         del self._right_map[key]
 
+    def delete(self, left_key: _KL, right_key: _KR) -> None:
+        index = self._get_index(left_key, right_key)
+        del self._values[index]
+        left_spec = self._left_map[left_key]
+        left_spec.assoc_keys.remove(right_key)
+        left_spec.indexes.remove(index)
+        right_spec = self._right_map[right_key]
+        right_spec.assoc_keys.remove(left_key)
+        right_spec.indexes.remove(index)
+
 
 class MonitoringServer:
-    def __init__(self, subscription_timeout=3):
-        pass
+    def __init__(self, subscription_timeout: int = 3):
+        self.subscription_timeout = subscription_timeout
+        self._subscriptions: DoubleKeyedMapping[
+            str, str, socket.socket
+        ] = DoubleKeyedMapping()
+        self._last_messages = {}
+        self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.socket.settimeout(0)
 
-    def dispatch_to_monitors(self, stream_id, data):
-        pass
+    def dispatch_to_monitors(self, stream_id: str, data: bytes) -> None:
+        monitor_addresses = self._subscriptions.get_right(stream_id)
+        for address in monitor_addresses:
+            try:
+                self.socket.sendto(data, address)
+            except OSError:
+                pass
 
-    def subscribe_to_stream(self, target_address, stream_id):
-        pass
+    def subscribe_to_stream(self, target_address: t.Tuple[str, int], stream_id: str) -> None:
+        ip_address, _ = target_address
+        self._subscriptions.put(ip_address, stream_id, target_address)
+        self._last_messages[ip_address] = time.time()
 
-    def unsubscribe_from_stream(self, target_address, stream_id):
-        pass
+    def unsubscribe_from_stream(self, target_address: t.Tuple[str, int], stream_id: str) -> None:
+        ip_address, _ = target_address
+        self._subscriptions.delete(ip_address, stream_id)
 
-    def purge_subscriptions(self):
-        pass
+    def message_from(self, ip_address: str) -> None:
+        self._last_messages[ip_address] = time.time()
 
-    async def purge_forever(self):
-        pass
+    def purge_subscriptions(self) -> None:
+        now = time.time()
+        for ip_address, last_message in self._last_messages.items():
+            if now - last_message > self.subscription_timeout:
+                self._subscriptions.delete_left(ip_address)
+
+    async def purge_forever(self) -> None:
+        while True:
+            self.purge_subscriptions()
+            await asyncio.sleep(self.subscription_timeout / 4)
 
 
 def _subprocess_factory(command):

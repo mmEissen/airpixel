@@ -58,6 +58,7 @@ class MonitorKeepaliveProtocol(asyncio.DatagramProtocol):
         pass
 
 
+_K = t.TypeVar("_K")
 _KL = t.TypeVar("_KL")
 _KR = t.TypeVar("_KR")
 _V = t.TypeVar("_V")
@@ -65,33 +66,28 @@ _V = t.TypeVar("_V")
 
 class DoubleKeyedMapping(t.Generic[_KL, _KR, _V]):
     @dataclasses.dataclass
-    class LSpec:
+    class _Spec(t.Generic[_K]):
         indexes: t.Set[int] = dataclasses.field(default_factory=set)
-        assoc_keys: t.Set[_KR] = dataclasses.field(default_factory=set)
-
-    @dataclasses.dataclass
-    class RSpec:
-        indexes: t.Set[int] = dataclasses.field(default_factory=set)
-        assoc_keys: t.Set[_KL] = dataclasses.field(default_factory=set)
+        assoc_keys: t.Set[_K] = dataclasses.field(default_factory=set)
 
     def __init__(self):
         self._values: t.Dict[int, _V] = {}
         self._left_map: t.DefaultDict[
-            _KL, DoubleKeyedMapping[_KL, _KR, _v].LSpec
-        ] = collections.defaultdict(self.LSpec)
+            _KL, DoubleKeyedMapping._Spec[_KR]
+        ] = collections.defaultdict(self._Spec)
         self._right_map: t.DefaultDict[
-            _KR, DoubleKeyedMapping[_KL, _KR, _v].RSpec
-        ] = collections.defaultdict(self.RSpec)
+            _KR, DoubleKeyedMapping.Spec[_KL]
+        ] = collections.defaultdict(self._Spec)
         self._counter = 0
 
     def _get_indexed(self, indexes: t.Set[int]) -> t.List[_V]:
         return [self._values[i] for i in indexes]
 
     def _left_indexes(self, key: _KL) -> t.Set[int]:
-        return self._left_map.get(key, self.LSpec()).indexes
+        return self._left_map.get(key, self._Spec()).indexes
 
-    def _right_indexes(self, key: _KL) -> t.Set[int]:
-        return self._right_map.get(key, self.RSpec()).indexes
+    def _right_indexes(self, key: _KR) -> t.Set[int]:
+        return self._right_map.get(key, self._Spec()).indexes
 
     def get_left(self, key: _KL) -> t.List[_V]:
         return self._get_indexed(self._left_indexes(key))
@@ -126,7 +122,7 @@ class DoubleKeyedMapping(t.Generic[_KL, _KR, _V]):
     def delete_left(self, key: _KL) -> None:
         if key not in self._left_map:
             raise KeyError
-        spec = self._left_map.get(key, self.LSpec())
+        spec = self._left_map.get(key, self._Spec())
         for assoc_key in spec.assoc_keys:
             r_spec = self._right_map[assoc_key]
             r_spec.assoc_keys.remove(key)
@@ -140,7 +136,7 @@ class DoubleKeyedMapping(t.Generic[_KL, _KR, _V]):
     def delete_right(self, key: _KR) -> None:
         if key not in self._right_map:
             raise KeyError
-        spec = self._right_map.get(key, self.RSpec())
+        spec = self._right_map.get(key, self._Spec())
         for assoc_key in spec.assoc_keys:
             l_spec = self._left_map[assoc_key]
             l_spec.assoc_keys.remove(key)
@@ -166,9 +162,9 @@ class MonitoringServer:
     def __init__(self, subscription_timeout: int = 3):
         self.subscription_timeout = subscription_timeout
         self._subscriptions: DoubleKeyedMapping[
-            str, str, socket.socket
+            str, str, t.Tuple[str, int]
         ] = DoubleKeyedMapping()
-        self._last_messages = {}
+        self._last_messages: t.Dict[str, float] = {}
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.socket.settimeout(0)
 
@@ -180,12 +176,16 @@ class MonitoringServer:
             except OSError:
                 pass
 
-    def subscribe_to_stream(self, target_address: t.Tuple[str, int], stream_id: str) -> None:
+    def subscribe_to_stream(
+        self, target_address: t.Tuple[str, int], stream_id: str
+    ) -> None:
         ip_address, _ = target_address
         self._subscriptions.put(ip_address, stream_id, target_address)
         self._last_messages[ip_address] = time.time()
 
-    def unsubscribe_from_stream(self, target_address: t.Tuple[str, int], stream_id: str) -> None:
+    def unsubscribe_from_stream(
+        self, target_address: t.Tuple[str, int], stream_id: str
+    ) -> None:
         ip_address, _ = target_address
         self._subscriptions.delete(ip_address, stream_id)
 

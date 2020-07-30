@@ -9,6 +9,8 @@ import subprocess
 import time
 import typing as t
 
+from airpixel import monitoring
+
 
 logging.basicConfig(level=logging.DEBUG)
 log = logging.getLogger(__name__)
@@ -46,7 +48,7 @@ class MonitorDispachProtocol(asyncio.DatagramProtocol):
         self._monitoring_server = monitoring_server
 
     def datagram_received(self, data, addr):
-        ip_address, _ = addr
+        pass
 
 
 class MonitorKeepaliveProtocol(asyncio.DatagramProtocol):

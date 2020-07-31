@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import atexit
 import asyncio
 import collections
@@ -43,21 +45,27 @@ class KeepaliveProtocol(asyncio.DatagramProtocol):
 
 
 class MonitorDispachProtocol(asyncio.DatagramProtocol):
-    def __init__(self, monitoring_server):
+    def __init__(self, monitoring_server: MonitoringServer):
         super().__init__()
         self._monitoring_server = monitoring_server
 
-    def datagram_received(self, data, addr):
-        pass
+    def datagram_received(self, data: bytes, addr: t.Tuple[str, int]):
+        try:
+            package = monitoring.MonitoringPackage.from_bytes(data)
+        except monitoring.PackageParsingError:
+            log.warning("Received invalid monitoring package!", extra={"package": data})
+            return
+        self._monitoring_server.dispatch_to_monitors(package.stream_id, package.data)
 
 
 class MonitorKeepaliveProtocol(asyncio.DatagramProtocol):
-    def __init__(self, monitoring_server):
+    def __init__(self, monitoring_server: MonitoringServer):
         super().__init__()
         self._monitoring_server = monitoring_server
 
-    def datagram_received(self, data, addr):
-        pass
+    def datagram_received(self, data: bytes, addr: t.Tuple[str, int]):
+        ip_address, _ = addr
+        self._monitoring_server.message_from(ip_address)
 
 
 _K = t.TypeVar("_K")

@@ -478,3 +478,26 @@ class TestMonitoringServer:
 
         monitoring_server.dispatch_to_monitors(stream_id, some_data)
         mock_socket.sendto.assert_called_once_with(some_data, address)
+
+
+@pytest.fixture(name="monitoring_dispatch_protocol")
+def f_monitoring_dispatch_protocol(monitoring_server):
+    return framework.MonitorDispachProtocol(monitoring_server)
+
+
+class TestMonitorDispachProtocol:
+    @staticmethod
+    @pytest.mark.parametrize(
+        "monitoring_server", [mock.MagicMock(spec=framework.MonitoringServer)]
+    )
+    def test_datagram_received_with_valid_package(
+        monitoring_package,
+        monitoring_dispatch_protocol,
+        raw_package,
+        monitoring_server,
+    ):
+        monitoring_dispatch_protocol.datagram_received(raw_package, mock.MagicMock)
+
+        monitoring_server.dispatch_to_monitors.assert_called_once_with(
+            monitoring_package.stream_id, monitoring_package.data
+        )

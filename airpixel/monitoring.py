@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import dataclasses
 
 
@@ -21,7 +23,7 @@ class MonitoringPackage:
     STREAM_ID_SIZE = 128
 
     @classmethod
-    def from_bytes(cls, raw_data: bytes):
+    def from_bytes(cls, raw_data: bytes) -> MonitoringPackage:
         if len(raw_data) < cls.STREAM_ID_SIZE:
             raise PackageParsingError("The package is invalid: Too short")
         header = raw_data[: cls.STREAM_ID_SIZE].lstrip(b"\x00")
@@ -29,7 +31,7 @@ class MonitoringPackage:
             raise PackageParsingError("The package is invalid: No stream ID")
         return cls(str(header, "utf_8"), raw_data[cls.STREAM_ID_SIZE :])
 
-    def to_bytes(self):
+    def to_bytes(self) -> bytes:
         if not self.stream_id:
             raise PackageSerializationError("stream_id can't be empty")
         stream_id_bytes = bytes(self.stream_id, "utf-8")

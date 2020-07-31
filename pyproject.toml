@@ -38,7 +38,7 @@ commands =
 extras =
     typecheck
 commands =
-    mypy airpixel
+    mypy airpixel --disallow-untyped-defs
 
 [testenv:test]
 extras =

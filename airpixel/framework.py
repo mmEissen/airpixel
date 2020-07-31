@@ -22,11 +22,11 @@ BYTEORDER = "big"
 
 
 class KeepaliveProtocol(asyncio.DatagramProtocol):
-    def __init__(self, process_registration):
+    def __init__(self, process_registration: ProcessRegistration):
         super().__init__()
         self._process_registration = process_registration
 
-    def datagram_received(self, data, addr):
+    def datagram_received(self, data: bytes, addr: t.Tuple[str, int]) -> None:
         ip_address, _ = addr
         frames, rendered = (int(n) for n in str(data, "utf-8").split())
         if frames:
@@ -45,7 +45,7 @@ class MonitorDispachProtocol(asyncio.DatagramProtocol):
         super().__init__()
         self._monitoring_server = monitoring_server
 
-    def datagram_received(self, data: bytes, addr: t.Tuple[str, int]):
+    def datagram_received(self, data: bytes, addr: t.Tuple[str, int]) -> None:
         try:
             package = monitoring.MonitoringPackage.from_bytes(data)
         except monitoring.PackageParsingError:
@@ -59,7 +59,7 @@ class MonitorKeepaliveProtocol(asyncio.DatagramProtocol):
         super().__init__()
         self._monitoring_server = monitoring_server
 
-    def datagram_received(self, data: bytes, addr: t.Tuple[str, int]):
+    def datagram_received(self, data: bytes, addr: t.Tuple[str, int]) -> None:
         ip_address, _ = addr
         self._monitoring_server.message_from(ip_address)
 
@@ -76,13 +76,13 @@ class DoubleKeyedMapping(t.Generic[_KL, _KR, _V]):
         indexes: t.Set[int] = dataclasses.field(default_factory=set)
         assoc_keys: t.Set[_K] = dataclasses.field(default_factory=set)
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._values: t.Dict[int, _V] = {}
         self._left_map: t.DefaultDict[
             _KL, DoubleKeyedMapping._Spec[_KR]
         ] = collections.defaultdict(self._Spec)
         self._right_map: t.DefaultDict[
-            _KR, DoubleKeyedMapping.Spec[_KL]
+            _KR, DoubleKeyedMapping._Spec[_KL]
         ] = collections.defaultdict(self._Spec)
         self._counter = 0
 
@@ -210,13 +210,13 @@ class MonitoringServer:
             await asyncio.sleep(self.subscription_timeout / 4)
 
 
-def _subprocess_factory(command):
+def _subprocess_factory(command: str) -> subprocess.Popen:
     return subprocess.Popen("exec " + command, text=True, shell=True)
 
 
 @dataclasses.dataclass
 class ProcessMeta:
-    process: t.Any
+    process: subprocess.Popen
     ip_address: str
     device_id: str
     last_response: float
@@ -226,8 +226,8 @@ class ProcessRegistration:
     def __init__(
         self,
         device_configs: t.Iterable[DeviceConfig],
-        subprocess_factory=_subprocess_factory,
-        timeout=3,
+        subprocess_factory: t.Callable[[str], subprocess.Popen] = _subprocess_factory,
+        timeout: float = 3,
     ):
         self._commands = {
             device_config.device_id: device_config.command_template
@@ -235,23 +235,23 @@ class ProcessRegistration:
         }
         self._subprocess_factory = subprocess_factory
         self._timeout = timeout
-        self._processes: t.Dict[str, t.Any] = {}
+        self._processes: t.Dict[str, ProcessMeta] = {}
         atexit.register(self.cleanup)
 
-    def _kill_process(self, ip_address):
+    def _kill_process(self, ip_address: str) -> None:
         if ip_address not in self._processes:
             return
         self._processes[ip_address].process.kill()
         self._processes[ip_address].process.communicate()
         del self._processes[ip_address]
 
-    def response_from(self, ip_address):
+    def response_from(self, ip_address: str) -> None:
         try:
             self._processes[ip_address].last_response = time.time()
         except KeyError:
             pass
 
-    def purge_processes(self):
+    def purge_processes(self) -> None:
         now = time.time()
         dead_processes = {
             ip
@@ -262,12 +262,12 @@ class ProcessRegistration:
             log.info("Killing process for %s.", ip_address)
             self._kill_process(ip_address)
 
-    async def purge_forever(self):
+    async def purge_forever(self) -> None:
         while True:
             self.purge_processes()
             await asyncio.sleep(self._timeout / 4)
 
-    def launch_for(self, device_id, ip_address, streaming_port):
+    def launch_for(self, device_id: str, ip_address: str, streaming_port: int) -> None:
         try:
             base_command = self._commands[device_id]
         except KeyError:
@@ -288,7 +288,7 @@ class ProcessRegistration:
             self._subprocess_factory(base_command), ip_address, device_id, time.time()
         )
 
-    def cleanup(self):
+    def cleanup(self) -> None:
         for process_meta in self._processes.values():
             process_meta.process.kill()
 
@@ -296,19 +296,19 @@ class ProcessRegistration:
 class ConnectionProtocol(asyncio.Protocol):
     PORT_SIZE = 2
     SEPPERATOR = b"\n"
+    transport: asyncio.Transport
 
-    def __init__(self, process_registration, response_port):
+    def __init__(self, process_registration: ProcessRegistration, response_port: int):
         super().__init__()
         self._process_registration = process_registration
-        self.transport = None
         self._current_package = b""
         self.response_port = response_port
 
-    def connection_made(self, transport):
+    def connection_made(self, transport: asyncio.BaseTransport) -> None:
         log.info("New connection")
-        self.transport = transport
+        self.transport = t.cast(asyncio.Transport, transport)
 
-    def _register_device(self, registration_bytes):
+    def _register_device(self, registration_bytes: bytes) -> None:
         port = int.from_bytes(registration_bytes[: self.PORT_SIZE], BYTEORDER)
         device_id = str(registration_bytes[self.PORT_SIZE :], "utf-8")
         ip_address, _ = self.transport.get_extra_info("peername")
@@ -317,7 +317,7 @@ class ConnectionProtocol(asyncio.Protocol):
             int.to_bytes(self.response_port, self.PORT_SIZE, BYTEORDER)
         )
 
-    def data_received(self, data):
+    def data_received(self, data: bytes) -> None:
         *packages, self._current_package = (self._current_package + data).split(
             self.SEPPERATOR
         )
@@ -365,7 +365,7 @@ class Application:
         self.config = config
         self.process_registration = ProcessRegistration(config.devices)
 
-    async def run_forever(self):
+    async def run_forever(self) -> None:
         loop = asyncio.get_running_loop()
 
         await loop.create_datagram_endpoint(
@@ -386,7 +386,7 @@ class Application:
             )
 
 
-def main():
+def main() -> None:
     config = Config.load("airpixel.yaml")
 
     log.info(config)

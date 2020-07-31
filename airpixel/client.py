@@ -60,7 +60,7 @@ class Pixel:
     def __init__(self, red: float, green: float, blue: float) -> None:
         self.values = np.array((red, green, blue))
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "P{:.2}|{:.2}|{:.2}".format(
             float(self.values[0]), float(self.values[1]), float(self.values[2])
         )
@@ -128,8 +128,8 @@ class AutoClient(LoopingThread):
 
     def begin(
         self,
-        remote_ip=str,
-        remote_port=int,
+        remote_ip: str,
+        remote_port: int,
         color_method: t.Type[ColorMethod] = ColorMethodGRB,
     ) -> None:
         self._client = AirClient(remote_ip, remote_port, color_method)
@@ -138,11 +138,11 @@ class AutoClient(LoopingThread):
 
         self.start()
 
-    def show_frame(self, frame):
+    def show_frame(self, frame: t.Iterable[Pixel]) -> None:
         with self._lock:
             self._frame = list(frame)
 
-    def loop(self):
+    def loop(self) -> None:
         with self._lock:
             self._client.show_frame(self._frame)
         time.sleep(self.SLEEP)

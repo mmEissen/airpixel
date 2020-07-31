@@ -332,71 +332,13 @@ def f_populated_double_map(double_keyed_map):
     return double_keyed_map
 
 
-class TestDoubleKeyedMap:
-    @staticmethod
-    def test_put(double_keyed_map):
-        double_keyed_map.put("left", ("righ",), 10)
-
-    @staticmethod
-    def test_get(populated_double_map):
-        values = populated_double_map.get("l1", "r1")
-
-        assert values == 10
-
-    @staticmethod
-    @pytest.mark.parametrize(
-        "key, value",
-        [
-            pytest.param("l1", [10, 20]),
-            pytest.param("l2", [30, 40]),
-            pytest.param("xx", []),
-        ],
-    )
-    def test_get_left(populated_double_map, key, value):
-        result = populated_double_map.get_left(key)
-
-        assert sorted(result) == value
-
-    @staticmethod
-    @pytest.mark.parametrize(
-        "key, value",
-        [
-            pytest.param("r1", [10]),
-            pytest.param("r2", [20, 30]),
-            pytest.param("r3", [40]),
-            pytest.param("xx", []),
-        ],
-    )
-    def test_get_right(populated_double_map, key, value):
-        result = populated_double_map.get_right(key)
-
-        assert sorted(result) == value
-
-    @staticmethod
-    def test_delete_left(populated_double_map):
-        populated_double_map.delete_left("l1")
-
-        assert populated_double_map.get_left("l1") == []
-        assert populated_double_map.get_right("r1") == []
-        assert populated_double_map.get_right("r2") == [30]
-
-    @staticmethod
-    def test_delete_right(populated_double_map):
-        populated_double_map.delete_right("r2")
-
-        assert populated_double_map.get_left("l1") == [10]
-        assert populated_double_map.get_left("l2") == [40]
-        assert populated_double_map.get_right("r1") == [10]
-        assert populated_double_map.get_right("r2") == []
-
-
 @pytest.fixture(name="mock_socket")
 def f_mock_socket():
     return mock.MagicMock()
 
 
 @pytest.fixture(name="monitoring_server")
-def f_monitoring_server(mock_socket):
+def f_monitoring_server(mock_socket, clock):
     monitoring_server = framework.MonitoringServer()
     monitoring_server.socket = mock_socket
     return monitoring_server
@@ -417,47 +359,55 @@ def f_some_data():
     return b"some data"
 
 
+@pytest.fixture(name="monitoring_server_with_subscription")
+def f_monitoring_server_with_subscription(monitoring_server, ipv4_address, stream_id, udp_port):
+    monitoring_server.connect(ipv4_address, udp_port)
+    monitoring_server.subscribe_to_stream(ipv4_address, stream_id)
+    return monitoring_server
+
+
 class TestMonitoringServer:
     @staticmethod
-    def test_subscribe_to_stream(monitoring_server, address, stream_id):
-        monitoring_server.subscribe_to_stream(address, stream_id)
+    def test_connect(monitoring_server, ipv4_address, udp_port):
+        monitoring_server.connect(ipv4_address, udp_port)
+
+    @staticmethod
+    def test_subscribe_to_stream(monitoring_server, ipv4_address, stream_id):
+        monitoring_server.subscribe_to_stream(ipv4_address, stream_id)
 
     @staticmethod
     def test_dispatch_to_monitors_dispachecs_to_address_after_subscribe(
-        monitoring_server, address, stream_id, some_data, mock_socket
+        monitoring_server_with_subscription, address, stream_id, some_data, mock_socket
     ):
-        monitoring_server.subscribe_to_stream(address, stream_id)
 
-        monitoring_server.dispatch_to_monitors(stream_id, some_data)
+        monitoring_server_with_subscription.dispatch_to_monitors(stream_id, some_data)
 
         mock_socket.sendto.assert_called_once_with(some_data, address)
 
     @staticmethod
     def test_dispatch_to_monitors_does_not_dispach_to_address_after_unsubscribe(
-        monitoring_server, address, stream_id, some_data, mock_socket
+        monitoring_server_with_subscription, ipv4_address, stream_id, some_data, mock_socket
     ):
-        monitoring_server.subscribe_to_stream(address, stream_id)
-        monitoring_server.unsubscribe_from_stream(address, stream_id)
+        monitoring_server_with_subscription.unsubscribe_from_stream(ipv4_address, stream_id)
 
-        monitoring_server.dispatch_to_monitors(stream_id, some_data)
+        monitoring_server_with_subscription.dispatch_to_monitors(stream_id, some_data)
 
         mock_socket.sendto.assert_not_called()
 
     @staticmethod
     def test_subscription_is_purged(
-        monitoring_server, address, stream_id, some_data, mock_socket, clock
+        monitoring_server_with_subscription, stream_id, some_data, mock_socket, clock
     ):
-        monitoring_server.subscribe_to_stream(address, stream_id)
         clock.time += 4
 
-        monitoring_server.purge_subscriptions()
+        monitoring_server_with_subscription.purge_subscriptions()
 
-        monitoring_server.dispatch_to_monitors(stream_id, some_data)
+        monitoring_server_with_subscription.dispatch_to_monitors(stream_id, some_data)
         mock_socket.sendto.assert_not_called()
 
     @staticmethod
     def test_subscription_is_not_purged(
-        monitoring_server,
+        monitoring_server_with_subscription,
         address,
         stream_id,
         some_data,
@@ -465,13 +415,12 @@ class TestMonitoringServer:
         clock,
         ipv4_address,
     ):
-        monitoring_server.subscribe_to_stream(address, stream_id)
         clock.time += 4
-        monitoring_server.message_from(ipv4_address)
+        monitoring_server_with_subscription.message_from(ipv4_address)
 
-        monitoring_server.purge_subscriptions()
+        monitoring_server_with_subscription.purge_subscriptions()
 
-        monitoring_server.dispatch_to_monitors(stream_id, some_data)
+        monitoring_server_with_subscription.dispatch_to_monitors(stream_id, some_data)
         mock_socket.sendto.assert_called_once_with(some_data, address)
 
 

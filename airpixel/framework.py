@@ -64,145 +64,119 @@ class MonitorKeepaliveProtocol(asyncio.DatagramProtocol):
         self._monitoring_server.message_from(ip_address)
 
 
-_K = t.TypeVar("_K")
-_KL = t.TypeVar("_KL")
-_KR = t.TypeVar("_KR")
-_V = t.TypeVar("_V")
+@dataclasses.dataclass
+class MonitorDevice:
+    ip_address: str
+    udp_port: int
+    last_message: float = 0
+    subscriptions: t.Dict[str, MonitorStream] = dataclasses.field(default_factory=dict)
 
+    def subscribe_to(self, stream: MonitorStream) -> None:
+        self.subscriptions[stream.stream_id] = stream
+        stream.add_subscriber(self)
 
-class DoubleKeyedMapping(t.Generic[_KL, _KR, _V]):
-    @dataclasses.dataclass
-    class _Spec(t.Generic[_K]):
-        indexes: t.Set[int] = dataclasses.field(default_factory=set)
-        assoc_keys: t.Set[_K] = dataclasses.field(default_factory=set)
-
-    def __init__(self) -> None:
-        self._values: t.Dict[int, _V] = {}
-        self._left_map: t.DefaultDict[
-            _KL, DoubleKeyedMapping._Spec[_KR]
-        ] = collections.defaultdict(self._Spec)
-        self._right_map: t.DefaultDict[
-            _KR, DoubleKeyedMapping._Spec[_KL]
-        ] = collections.defaultdict(self._Spec)
-        self._counter = 0
-
-    def _get_indexed(self, indexes: t.Set[int]) -> t.List[_V]:
-        return [self._values[i] for i in indexes]
-
-    def _left_indexes(self, key: _KL) -> t.Set[int]:
-        return self._left_map.get(key, self._Spec()).indexes
-
-    def _right_indexes(self, key: _KR) -> t.Set[int]:
-        return self._right_map.get(key, self._Spec()).indexes
-
-    def get_left(self, key: _KL) -> t.List[_V]:
-        return self._get_indexed(self._left_indexes(key))
-
-    def get_right(self, key: _KR) -> t.List[_V]:
-        return self._get_indexed(self._right_indexes(key))
-
-    def _get_index(self, left_key: _KL, right_key: _KR) -> int:
-        indexes = self._left_indexes(left_key) & self._right_indexes(right_key)
-        if not indexes:
-            raise KeyError
-        return indexes.pop()
-
-    def get(self, left_key: _KL, right_key: _KR) -> _V:
-        return self._values[self._get_index(left_key, right_key)]
-
-    def put(self, left_key: _KL, right_key: _KR, value: _V) -> None:
+    def unsubscribe_from(self, stream: MonitorStream) -> None:
         try:
-            index = self._get_index(left_key, right_key)
+            subscription = self.subscriptions.pop(stream.stream_id)
         except KeyError:
-            pass
-        else:
-            self._values[index] = value
             return
-        self._values[self._counter] = value
-        self._left_map[left_key].indexes.add(self._counter)
-        self._left_map[left_key].assoc_keys.add(right_key)
-        self._right_map[right_key].indexes.add(self._counter)
-        self._right_map[right_key].assoc_keys.add(left_key)
-        self._counter += 1
+        subscription.remove_subscriber(self)
 
-    def delete_left(self, key: _KL) -> None:
-        if key not in self._left_map:
-            raise KeyError
-        spec = self._left_map.get(key, self._Spec())
-        for assoc_key in spec.assoc_keys:
-            r_spec = self._right_map[assoc_key]
-            r_spec.assoc_keys.remove(key)
-            r_spec.indexes -= spec.indexes
-            if not r_spec.assoc_keys:
-                del self._right_map[assoc_key]
-        for index in spec.indexes:
-            del self._values[index]
-        del self._left_map[key]
+    def unsubscribe_all(self) -> t.List[MonitorStream]:
+        for subscription in self.subscriptions.values():
+            subscription.remove_subscriber(self)
+        old_subscriptions = [
+            subscription for subscription in self.subscriptions.values()
+        ]
+        self.subscriptions = {}
+        return old_subscriptions
 
-    def delete_right(self, key: _KR) -> None:
-        if key not in self._right_map:
-            raise KeyError
-        spec = self._right_map.get(key, self._Spec())
-        for assoc_key in spec.assoc_keys:
-            l_spec = self._left_map[assoc_key]
-            l_spec.assoc_keys.remove(key)
-            l_spec.indexes -= spec.indexes
-            if not l_spec.assoc_keys:
-                del self._left_map[assoc_key]
-        for index in spec.indexes:
-            del self._values[index]
-        del self._right_map[key]
+    def address(self) -> t.Tuple[str, int]:
+        return (self.ip_address, self.udp_port)
 
-    def delete(self, left_key: _KL, right_key: _KR) -> None:
-        index = self._get_index(left_key, right_key)
-        del self._values[index]
-        left_spec = self._left_map[left_key]
-        left_spec.assoc_keys.remove(right_key)
-        left_spec.indexes.remove(index)
-        right_spec = self._right_map[right_key]
-        right_spec.assoc_keys.remove(left_key)
-        right_spec.indexes.remove(index)
+    def heartbeat(self) -> None:
+        self.last_message = time.time()
+
+
+@dataclasses.dataclass
+class MonitorStream:
+    stream_id: str
+    subscribers: t.Dict[str, MonitorDevice] = dataclasses.field(default_factory=dict)
+
+    def add_subscriber(self, monitor: MonitorDevice) -> None:
+        self.subscribers[monitor.ip_address] = monitor
+
+    def remove_subscriber(self, monitor: MonitorDevice) -> None:
+        del self.subscribers[monitor.ip_address]
+
+    def has_subscribers(self) -> bool:
+        return bool(self.subscribers)
 
 
 class MonitoringServer:
     def __init__(self, subscription_timeout: int = 3):
         self.subscription_timeout = subscription_timeout
-        self._subscriptions: DoubleKeyedMapping[
-            str, str, t.Tuple[str, int]
-        ] = DoubleKeyedMapping()
-        self._last_messages: t.Dict[str, float] = {}
+        self._devices: t.Dict[str, MonitorDevice] = {}
+        self._streams: t.Dict[str, MonitorStream] = {}
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.socket.settimeout(0)
 
+    def connect(self, ip_address: str, port: int) -> None:
+        device = self._devices.setdefault(ip_address, MonitorDevice(ip_address, port))
+        device.heartbeat()
+
     def dispatch_to_monitors(self, stream_id: str, data: bytes) -> None:
-        monitor_addresses = self._subscriptions.get_right(stream_id)
-        for address in monitor_addresses:
+        try:
+            stream = self._streams[stream_id]
+        except KeyError:
+            return
+        for subscriber in stream.subscribers.values():
             try:
-                self.socket.sendto(data, address)
+                self.socket.sendto(data, subscriber.address())
             except OSError:
                 pass
 
-    def subscribe_to_stream(
-        self, target_address: t.Tuple[str, int], stream_id: str
-    ) -> None:
-        ip_address, _ = target_address
-        self._subscriptions.put(ip_address, stream_id, target_address)
-        self._last_messages[ip_address] = time.time()
+    def subscribe_to_stream(self, ip_address: str, stream_id: str) -> None:
+        try:
+            device = self._devices[ip_address]
+        except KeyError:
+            return
+        stream = self._streams.setdefault(stream_id, MonitorStream(stream_id))
+        device.subscribe_to(stream)
 
-    def unsubscribe_from_stream(
-        self, target_address: t.Tuple[str, int], stream_id: str
-    ) -> None:
-        ip_address, _ = target_address
-        self._subscriptions.delete(ip_address, stream_id)
+    def unsubscribe_from_stream(self, ip_address: str, stream_id: str) -> None:
+        try:
+            device = self._devices[ip_address]
+            stream = self._streams[stream_id]
+        except KeyError:
+            return
+        del self._devices[ip_address]
+        device.unsubscribe_from(stream)
+        self._clean_stream(stream)
+
+    def _clean_stream(self, stream: MonitorStream) -> None:
+        if not stream.has_subscribers():
+            del self._streams[stream.stream_id]
 
     def message_from(self, ip_address: str) -> None:
-        self._last_messages[ip_address] = time.time()
+        try:
+            device = self._devices[ip_address]
+        except KeyError:
+            return
+        device.heartbeat()
 
     def purge_subscriptions(self) -> None:
         now = time.time()
-        for ip_address, last_message in self._last_messages.items():
-            if now - last_message > self.subscription_timeout:
-                self._subscriptions.delete_left(ip_address)
+        to_kill: t.Set[str] = set()
+        for device in self._devices.values():
+            if now - device.last_message < self.subscription_timeout:
+                continue
+            to_kill.add(device.ip_address)
+            streams = device.unsubscribe_all()
+            for stream in streams:
+                self._clean_stream(stream)
+        for ip_address in to_kill:
+            del self._devices[ip_address]
 
     async def purge_forever(self) -> None:
         while True:

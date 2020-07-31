@@ -62,17 +62,12 @@ def f_clock():
 
 @pytest.fixture(name="device_config")
 def f_device_config(device_name, sh_command_template):
-    return {device_name: sh_command_template}
+    return framework.DeviceConfig(device_name, sh_command_template)
 
 
-@pytest.fixture(name="config")
-def f_config(ipv4_address, tcp_port, udp_port, device_config):
-    return {
-        "address": ipv4_address,
-        "port": tcp_port,
-        "udp_port": udp_port,
-        "devices": device_config,
-    }
+@pytest.fixture(name="device_configs")
+def f_device_configs(device_config):
+    return [device_config]
 
 
 @pytest.fixture(name="mock_subprocess")
@@ -103,9 +98,9 @@ def f_device_registration_data(device_name, device_udp_port):
 
 
 @pytest.fixture(name="process_registration")
-def f_process_registration(device_config, subprocess_factory, registration_timeout):
+def f_process_registration(device_configs, subprocess_factory, registration_timeout):
     return framework.ProcessRegistration(
-        device_config,
+        device_configs,
         subprocess_factory=subprocess_factory,
         timeout=registration_timeout,
     )

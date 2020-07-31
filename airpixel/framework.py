@@ -4,12 +4,13 @@ import atexit
 import asyncio
 import collections
 import dataclasses
-import json
 import logging
 import socket
 import subprocess
 import time
 import typing as t
+
+import yaml
 
 from airpixel import monitoring
 
@@ -18,11 +19,6 @@ logging.basicConfig(level=logging.DEBUG)
 log = logging.getLogger(__name__)
 
 BYTEORDER = "big"
-
-
-def load_config(file_name):
-    with open(file_name) as file_:
-        return json.load(file_)
 
 
 class KeepaliveProtocol(asyncio.DatagramProtocol):
@@ -227,11 +223,19 @@ class ProcessMeta:
 
 
 class ProcessRegistration:
-    def __init__(self, config, subprocess_factory=_subprocess_factory, timeout=3):
-        self._config = config
+    def __init__(
+        self,
+        device_configs: t.Iterable[DeviceConfig],
+        subprocess_factory=_subprocess_factory,
+        timeout=3,
+    ):
+        self._commands = {
+            device_config.device_id: device_config.command_template
+            for device_config in device_configs
+        }
         self._subprocess_factory = subprocess_factory
         self._timeout = timeout
-        self._processes = {}
+        self._processes: t.Dict[str, t.Any] = {}
         atexit.register(self.cleanup)
 
     def _kill_process(self, ip_address):
@@ -265,7 +269,7 @@ class ProcessRegistration:
 
     def launch_for(self, device_id, ip_address, streaming_port):
         try:
-            base_command = self._config[device_id]
+            base_command = self._commands[device_id]
         except KeyError:
             log.warning("No process configured for device ID %s", device_id)
             return
@@ -324,30 +328,75 @@ class ConnectionProtocol(asyncio.Protocol):
         self.transport.close()
 
 
-async def main():
-    config = load_config("airpixel.json")
+@dataclasses.dataclass
+class Config:
+    address: str
+    port: int
+    udp_port: int
+    devices: t.List[DeviceConfig]
+
+    @classmethod
+    def from_dict(cls, dict_: t.Dict[str, t.Any]) -> Config:
+        return cls(
+            dict_["address"],
+            dict_["port"],
+            dict_["udp_port"],
+            [DeviceConfig.from_dict(d) for d in dict_["devices"]],
+        )
+
+    @classmethod
+    def load(cls, file_name: str) -> Config:
+        with open(file_name) as file_:
+            return cls.from_dict(yaml.load(file_))
+
+
+@dataclasses.dataclass
+class DeviceConfig:
+    device_id: str
+    command_template: str
+
+    @classmethod
+    def from_dict(cls, dict_: t.Dict[str, t.Any]) -> DeviceConfig:
+        return cls(dict_["device_id"], dict_["command_template"],)
+
+
+class Application:
+    def __init__(self, config: Config):
+        self.config = config
+        self.process_registration = ProcessRegistration(config.devices)
+
+    async def run_forever(self):
+        loop = asyncio.get_running_loop()
+
+        await loop.create_datagram_endpoint(
+            lambda: KeepaliveProtocol(self.process_registration),
+            local_addr=(self.config.address, self.config.udp_port),
+            family=socket.AF_INET,
+        )
+
+        server = await loop.create_server(
+            lambda: ConnectionProtocol(self.process_registration, self.config.udp_port),
+            self.config.address,
+            self.config.port,
+        )
+
+        async with server:
+            await asyncio.gather(
+                server.serve_forever(), self.process_registration.purge_forever()
+            )
+
+
+def main():
+    config = Config.load("airpixel.yaml")
 
     log.info(config)
 
-    loop = asyncio.get_running_loop()
-    process_registration = ProcessRegistration(config["devices"])
-    transport, protocol = await loop.create_datagram_endpoint(
-        lambda: KeepaliveProtocol(process_registration),
-        local_addr=(config["address"], config["udp_port"]),
-        family=socket.AF_INET,
-    )
-
-    server = await loop.create_server(
-        lambda: ConnectionProtocol(process_registration, config["udp_port"]),
-        config["address"],
-        config["port"],
-    )
-
-    async with server:
-        await asyncio.gather(
-            server.serve_forever(), process_registration.purge_forever()
-        )
+    app = Application(config)
+    try:
+        asyncio.run(app.run_forever())
+    except KeyboardInterrupt:
+        log.info("Application shut down by user (keyboard interrupt)")
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()

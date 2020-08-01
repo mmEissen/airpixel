@@ -21,6 +21,14 @@ log = logging.getLogger(__name__)
 BYTEORDER = "big"
 
 
+class FrameworkException(Exception):
+    pass
+
+
+class MonitorCommandError(FrameworkException):
+    pass
+
+
 class KeepaliveProtocol(asyncio.DatagramProtocol):
     def __init__(self, process_registration: ProcessRegistration):
         super().__init__()
@@ -182,6 +190,92 @@ class MonitoringServer:
         while True:
             self.purge_subscriptions()
             await asyncio.sleep(self.subscription_timeout / 4)
+
+
+class MonitorConnectionProtocol(asyncio.Protocol):
+    PORT_SIZE = 2
+    SEPPERATOR = b"\n"
+    DEFAULT_RESPONSE = "acc"
+    transport: asyncio.Transport
+
+    def __init__(self, monitoring_server: MonitoringServer, keepalive_port: int):
+        super().__init__()
+        self._monitoring_server = monitoring_server
+        self._current_package = b""
+        self._keepalive_port = keepalive_port
+
+    def connection_made(self, transport: asyncio.BaseTransport) -> None:
+        self.transport = t.cast(asyncio.Transport, transport)
+
+    def _subscribe(self, arg: str) -> str:
+        try:
+            stream_id, port_str = arg.split(":")
+        except ValueError:
+            raise MonitorCommandError("expected 'stream_id:port'")
+        try:
+            port = int(port_str)
+        except ValueError:
+            raise MonitorCommandError("port should be a number")
+        ip_address, _ = self.transport.get_extra_info("peername")
+        self._monitoring_server.subscribe_to_stream((ip_address, port), stream_id)
+        return self.DEFAULT_RESPONSE
+
+    def _unsubscribe(self, arg: str) -> str:
+        stream_id = arg
+        ip_address, _ = self.transport.get_extra_info("peername")
+        self._monitoring_server.unsubscribe_from_stream(ip_address, stream_id)
+        return self.DEFAULT_RESPONSE
+
+    def _connect(self, args: str) -> str:
+        try:
+            udp_port = int(args)
+        except ValueError:
+            raise MonitorCommandError("port needs to be an int")
+        ip_address, _ = self.transport.get_extra_info("peername")
+        self._monitoring_server.connect(ip_address, udp_port)
+        return str(self._keepalive_port)
+
+    def execute_command(self, command: monitoring.MonitorCommand) -> str:
+        if command.verb == monitoring.MonitorCommandVerb.SUBSCRIBE:
+            return self._subscribe(command.arg)
+        if command.verb == monitoring.MonitorCommandVerb.UNSUBSCRIBE:
+            return self._unsubscribe(command.arg)
+        if command.verb == monitoring.MonitorCommandVerb.CONNECT:
+            return self._connect(command.arg)
+
+    def respond_error(self, error: Exception) -> None:
+        self.transport.write(
+            monitoring.MonitorCommandResponse(
+                monitoring.MonitorCommandResponseType.ERROR, str(e)
+            )
+        )
+        self.transport.close()
+
+    def respond_success(self, data: str) -> None:
+        self.transport.write(
+            monitoring.MonitorCommandResponse(
+                monitoring.MonitorCommandResponseType.SUCCESS, bytes(data, "utf-8")
+            )
+        )
+        self.transport.close()
+
+    def data_received(self, data: bytes) -> None:
+        *packages, self._current_package = (self._current_package + data).split(
+            self.SEPPERATOR
+        )
+        if not packages:
+            return
+        try:
+            command = monitoring.MonitorCommand.from_bytes(data)
+        except monitoring.CommandParseError as e:
+            self.respond_error(e)
+            return
+        try:
+            response = self.execute_command(command)
+        except MonitorCommandError as e:
+            self.respond_error(e)
+        else:
+            self.respond_success(response)
 
 
 def _subprocess_factory(command: str) -> subprocess.Popen:

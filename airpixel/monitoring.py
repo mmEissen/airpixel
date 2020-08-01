@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import dataclasses
+import enum
 
 
 class MonitoringError(Exception):
@@ -13,6 +14,49 @@ class PackageParsingError(MonitoringError):
 
 class PackageSerializationError(MonitoringError):
     pass
+
+
+class CommandParseError(MonitoringError):
+    pass
+
+
+class MonitorCommandVerb(str, enum.Enum):
+    SUBSCRIBE = "sub"
+    UNSUBSCRIBE = "unsub"
+    CONNECT = "conn"
+
+
+class MonitorCommandResponseType(bytes, enum.Enum):
+    ERROR = b"err"
+    SUCCESS = b"acc"
+
+
+@dataclasses.dataclass
+class MonitorCommandResponse:
+    response: MonitorCommandResponseType
+    info: str
+    SEPERATOR = b":"
+
+    def to_bytes(self) -> MonitorCommand:
+        return self.response.value + self.SEPERATOR + bytes(info, "utf-8")
+
+
+@dataclasses.dataclass
+class MonitorCommand:
+    verb: MonitorCommandVerb
+    arg: str
+
+    @classmethod
+    def from_bytes(cls, data: bytes) -> MonitorCommand:
+        try:
+            verb_str, arg = str(data, "utf-8").split(" ")
+        except ValueError as e:
+            raise CommandParseError("Invalid command") from e
+        try:
+            verb = MonitorCommandVerb(verb)
+        except ValueError:
+            raise CommandParseError("Invalid command") from e
+        return cls(verb, arg)
 
 
 @dataclasses.dataclass

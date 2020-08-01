@@ -2,8 +2,6 @@ from unittest import mock
 
 import pytest
 
-from airpixel import monitoring
-
 
 @pytest.fixture(name="clock")
 def f_clock():

@@ -91,18 +91,15 @@ def f_address(ipv4_address, udp_port):
     return (ipv4_address, udp_port)
 
 
-@pytest.fixture(name="stream_id")
-def f_stream_id():
-    return "some_stream"
-
-
 @pytest.fixture(name="some_data")
 def f_some_data():
     return b"some data"
 
 
 @pytest.fixture(name="monitoring_server_with_subscription")
-def f_monitoring_server_with_subscription(monitoring_server, ipv4_address, stream_id, udp_port):
+def f_monitoring_server_with_subscription(
+    monitoring_server, ipv4_address, stream_id, udp_port
+):
     monitoring_server.connect(ipv4_address, udp_port)
     monitoring_server.subscribe_to_stream(ipv4_address, stream_id)
     return monitoring_server
@@ -128,9 +125,15 @@ class TestServer:
 
     @staticmethod
     def test_dispatch_to_monitors_does_not_dispach_to_address_after_unsubscribe(
-        monitoring_server_with_subscription, ipv4_address, stream_id, some_data, mock_socket
+        monitoring_server_with_subscription,
+        ipv4_address,
+        stream_id,
+        some_data,
+        mock_socket,
     ):
-        monitoring_server_with_subscription.unsubscribe_from_stream(ipv4_address, stream_id)
+        monitoring_server_with_subscription.unsubscribe_from_stream(
+            ipv4_address, stream_id
+        )
 
         monitoring_server_with_subscription.dispatch_to_monitors(stream_id, some_data)
 
@@ -177,14 +180,10 @@ class TestDispachProtocol:
         "monitoring_server", [mock.MagicMock(spec=monitoring.Server)]
     )
     def test_datagram_received_with_valid_package(
-        package,
-        dispatch_protocol,
-        raw_package,
-        monitoring_server,
+        package, dispatch_protocol, raw_package, monitoring_server,
     ):
         dispatch_protocol.datagram_received(raw_package, mock.MagicMock)
 
         monitoring_server.dispatch_to_monitors.assert_called_once_with(
             package.stream_id, package.data
         )
-

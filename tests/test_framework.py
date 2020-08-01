@@ -7,7 +7,6 @@ import pytest
 from airpixel import framework
 
 
-
 @pytest.fixture(name="device_ip_address")
 def f_device_ip_address():
     return "1.2.3.4"
@@ -294,4 +293,3 @@ class TestConnectionProtocol:
         mock_process_registration.launch_for.assert_called_once_with(
             device_name, device_ip_address, device_udp_port
         )
- 

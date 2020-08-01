@@ -5,6 +5,7 @@ import dataclasses
 import enum
 import socket
 import time
+import typing as t
 
 
 class MonitoringError(Exception):
@@ -45,7 +46,7 @@ class CommandResponse:
     SEPERATOR = b":"
 
     def to_bytes(self) -> Command:
-        return self.response.value + self.SEPERATOR + bytes(info, "utf-8")
+        return self.response.value + self.SEPERATOR + bytes(self.info, "utf-8")
 
 
 @dataclasses.dataclass
@@ -60,8 +61,8 @@ class Command:
         except ValueError as e:
             raise CommandParseError("Invalid command") from e
         try:
-            verb = CommandVerb(verb)
-        except ValueError:
+            verb = CommandVerb(verb_str)
+        except ValueError as e:
             raise CommandParseError("Invalid command") from e
         return cls(verb, arg)
 
@@ -104,7 +105,6 @@ class DispachProtocol(asyncio.DatagramProtocol):
         try:
             package = Package.from_bytes(data)
         except PackageParsingError:
-            log.warning("Received invalid monitoring package!", extra={"package": data})
             return
         self._monitoring_server.dispatch_to_monitors(package.stream_id, package.data)
 
@@ -255,16 +255,9 @@ class ConnectionProtocol(asyncio.Protocol):
         self.transport = t.cast(asyncio.Transport, transport)
 
     def _subscribe(self, arg: str) -> str:
-        try:
-            stream_id, port_str = arg.split(":")
-        except ValueError:
-            raise CommandError("expected 'stream_id:port'")
-        try:
-            port = int(port_str)
-        except ValueError:
-            raise CommandError("port should be a number")
+        stream_id = arg
         ip_address, _ = self.transport.get_extra_info("peername")
-        self._monitoring_server.subscribe_to_stream((ip_address, port), stream_id)
+        self._monitoring_server.subscribe_to_stream(ip_address, stream_id)
         return self.DEFAULT_RESPONSE
 
     def _unsubscribe(self, arg: str) -> str:
@@ -289,21 +282,14 @@ class ConnectionProtocol(asyncio.Protocol):
             return self._unsubscribe(command.arg)
         if command.verb == CommandVerb.CONNECT:
             return self._connect(command.arg)
+        raise CommandError("unrecognized command verb")
 
     def respond_error(self, error: Exception) -> None:
-        self.transport.write(
-            CommandResponse(
-                CommandResponseType.ERROR, str(e)
-            )
-        )
+        self.transport.write(CommandResponse(CommandResponseType.ERROR, str(error)))
         self.transport.close()
 
     def respond_success(self, data: str) -> None:
-        self.transport.write(
-            CommandResponse(
-                CommandResponseType.SUCCESS, bytes(data, "utf-8")
-            )
-        )
+        self.transport.write(CommandResponse(CommandResponseType.SUCCESS, data))
         self.transport.close()
 
     def data_received(self, data: bytes) -> None:

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import atexit
 import asyncio
-import collections
 import dataclasses
 import logging
 import socket
@@ -11,8 +10,6 @@ import time
 import typing as t
 
 import yaml
-
-from airpixel import monitoring
 
 
 logging.basicConfig(level=logging.DEBUG)

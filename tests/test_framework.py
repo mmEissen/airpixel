@@ -7,10 +7,6 @@ import pytest
 from airpixel import framework
 
 
-@pytest.fixture(name="ipv4_address")
-def f_ipv4_address():
-    return "192.168.2.100"
-
 
 @pytest.fixture(name="device_ip_address")
 def f_device_ip_address():
@@ -27,11 +23,6 @@ def f_tcp_port():
     return 50000
 
 
-@pytest.fixture(name="udp_port")
-def f_udp_port():
-    return 50001
-
-
 @pytest.fixture(name="device_name")
 def f_device_name():
     return "some_device"
@@ -45,19 +36,6 @@ def f_sh_command_template():
 @pytest.fixture(name="registration_timeout")
 def f_registration_timeout():
     return 5
-
-
-@pytest.fixture(name="clock")
-def f_clock():
-    class MockClock:
-        def __init__(self):
-            self.time = 1_000_000_000
-
-        def __call__(self):
-            return self.time
-
-    with mock.patch("time.time", new=MockClock()) as clock:
-        yield clock
 
 
 @pytest.fixture(name="device_config")
@@ -316,132 +294,4 @@ class TestConnectionProtocol:
         mock_process_registration.launch_for.assert_called_once_with(
             device_name, device_ip_address, device_udp_port
         )
-
-
-@pytest.fixture(name="double_keyed_map")
-def f_double_keyed_map():
-    return framework.DoubleKeyedMapping()
-
-
-@pytest.fixture(name="populated_double_map")
-def f_populated_double_map(double_keyed_map):
-    double_keyed_map.put("l1", "r1", 10)
-    double_keyed_map.put("l1", "r2", 20)
-    double_keyed_map.put("l2", "r2", 30)
-    double_keyed_map.put("l2", "r3", 40)
-    return double_keyed_map
-
-
-@pytest.fixture(name="mock_socket")
-def f_mock_socket():
-    return mock.MagicMock()
-
-
-@pytest.fixture(name="monitoring_server")
-def f_monitoring_server(mock_socket, clock):
-    monitoring_server = framework.MonitoringServer()
-    monitoring_server.socket = mock_socket
-    return monitoring_server
-
-
-@pytest.fixture(name="address")
-def f_address(ipv4_address, udp_port):
-    return (ipv4_address, udp_port)
-
-
-@pytest.fixture(name="stream_id")
-def f_stream_id():
-    return "some_stream"
-
-
-@pytest.fixture(name="some_data")
-def f_some_data():
-    return b"some data"
-
-
-@pytest.fixture(name="monitoring_server_with_subscription")
-def f_monitoring_server_with_subscription(monitoring_server, ipv4_address, stream_id, udp_port):
-    monitoring_server.connect(ipv4_address, udp_port)
-    monitoring_server.subscribe_to_stream(ipv4_address, stream_id)
-    return monitoring_server
-
-
-class TestMonitoringServer:
-    @staticmethod
-    def test_connect(monitoring_server, ipv4_address, udp_port):
-        monitoring_server.connect(ipv4_address, udp_port)
-
-    @staticmethod
-    def test_subscribe_to_stream(monitoring_server, ipv4_address, stream_id):
-        monitoring_server.subscribe_to_stream(ipv4_address, stream_id)
-
-    @staticmethod
-    def test_dispatch_to_monitors_dispachecs_to_address_after_subscribe(
-        monitoring_server_with_subscription, address, stream_id, some_data, mock_socket
-    ):
-
-        monitoring_server_with_subscription.dispatch_to_monitors(stream_id, some_data)
-
-        mock_socket.sendto.assert_called_once_with(some_data, address)
-
-    @staticmethod
-    def test_dispatch_to_monitors_does_not_dispach_to_address_after_unsubscribe(
-        monitoring_server_with_subscription, ipv4_address, stream_id, some_data, mock_socket
-    ):
-        monitoring_server_with_subscription.unsubscribe_from_stream(ipv4_address, stream_id)
-
-        monitoring_server_with_subscription.dispatch_to_monitors(stream_id, some_data)
-
-        mock_socket.sendto.assert_not_called()
-
-    @staticmethod
-    def test_subscription_is_purged(
-        monitoring_server_with_subscription, stream_id, some_data, mock_socket, clock
-    ):
-        clock.time += 4
-
-        monitoring_server_with_subscription.purge_subscriptions()
-
-        monitoring_server_with_subscription.dispatch_to_monitors(stream_id, some_data)
-        mock_socket.sendto.assert_not_called()
-
-    @staticmethod
-    def test_subscription_is_not_purged(
-        monitoring_server_with_subscription,
-        address,
-        stream_id,
-        some_data,
-        mock_socket,
-        clock,
-        ipv4_address,
-    ):
-        clock.time += 4
-        monitoring_server_with_subscription.message_from(ipv4_address)
-
-        monitoring_server_with_subscription.purge_subscriptions()
-
-        monitoring_server_with_subscription.dispatch_to_monitors(stream_id, some_data)
-        mock_socket.sendto.assert_called_once_with(some_data, address)
-
-
-@pytest.fixture(name="monitoring_dispatch_protocol")
-def f_monitoring_dispatch_protocol(monitoring_server):
-    return framework.MonitorDispachProtocol(monitoring_server)
-
-
-class TestMonitorDispachProtocol:
-    @staticmethod
-    @pytest.mark.parametrize(
-        "monitoring_server", [mock.MagicMock(spec=framework.MonitoringServer)]
-    )
-    def test_datagram_received_with_valid_package(
-        monitoring_package,
-        monitoring_dispatch_protocol,
-        raw_package,
-        monitoring_server,
-    ):
-        monitoring_dispatch_protocol.datagram_received(raw_package, mock.MagicMock)
-
-        monitoring_server.dispatch_to_monitors.assert_called_once_with(
-            monitoring_package.stream_id, monitoring_package.data
-        )
+ 

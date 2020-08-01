@@ -23,58 +23,58 @@ class CommandParseError(MonitoringError):
     pass
 
 
-class MonitorCommandError(MonitoringError):
+class CommandError(MonitoringError):
     pass
 
 
-class MonitorCommandVerb(str, enum.Enum):
+class CommandVerb(str, enum.Enum):
     SUBSCRIBE = "sub"
     UNSUBSCRIBE = "unsub"
     CONNECT = "conn"
 
 
-class MonitorCommandResponseType(bytes, enum.Enum):
+class CommandResponseType(bytes, enum.Enum):
     ERROR = b"err"
     SUCCESS = b"acc"
 
 
 @dataclasses.dataclass
-class MonitorCommandResponse:
-    response: MonitorCommandResponseType
+class CommandResponse:
+    response: CommandResponseType
     info: str
     SEPERATOR = b":"
 
-    def to_bytes(self) -> MonitorCommand:
+    def to_bytes(self) -> Command:
         return self.response.value + self.SEPERATOR + bytes(info, "utf-8")
 
 
 @dataclasses.dataclass
-class MonitorCommand:
-    verb: MonitorCommandVerb
+class Command:
+    verb: CommandVerb
     arg: str
 
     @classmethod
-    def from_bytes(cls, data: bytes) -> MonitorCommand:
+    def from_bytes(cls, data: bytes) -> Command:
         try:
             verb_str, arg = str(data, "utf-8").split(" ")
         except ValueError as e:
             raise CommandParseError("Invalid command") from e
         try:
-            verb = MonitorCommandVerb(verb)
+            verb = CommandVerb(verb)
         except ValueError:
             raise CommandParseError("Invalid command") from e
         return cls(verb, arg)
 
 
 @dataclasses.dataclass
-class MonitoringPackage:
+class Package:
     stream_id: str
     data: bytes
 
     STREAM_ID_SIZE = 128
 
     @classmethod
-    def from_bytes(cls, raw_data: bytes) -> MonitoringPackage:
+    def from_bytes(cls, raw_data: bytes) -> Package:
         if len(raw_data) < cls.STREAM_ID_SIZE:
             raise PackageParsingError("The package is invalid: Too short")
         header = raw_data[: cls.STREAM_ID_SIZE].lstrip(b"\x00")
@@ -95,22 +95,22 @@ class MonitoringPackage:
         )
 
 
-class MonitorDispachProtocol(asyncio.DatagramProtocol):
-    def __init__(self, monitoring_server: MonitoringServer):
+class DispachProtocol(asyncio.DatagramProtocol):
+    def __init__(self, monitoring_server: Server):
         super().__init__()
         self._monitoring_server = monitoring_server
 
     def datagram_received(self, data: bytes, addr: t.Tuple[str, int]) -> None:
         try:
-            package = MonitoringPackage.from_bytes(data)
+            package = Package.from_bytes(data)
         except PackageParsingError:
             log.warning("Received invalid monitoring package!", extra={"package": data})
             return
         self._monitoring_server.dispatch_to_monitors(package.stream_id, package.data)
 
 
-class MonitorKeepaliveProtocol(asyncio.DatagramProtocol):
-    def __init__(self, monitoring_server: MonitoringServer):
+class KeepaliveProtocol(asyncio.DatagramProtocol):
+    def __init__(self, monitoring_server: Server):
         super().__init__()
         self._monitoring_server = monitoring_server
 
@@ -120,24 +120,24 @@ class MonitorKeepaliveProtocol(asyncio.DatagramProtocol):
 
 
 @dataclasses.dataclass
-class MonitorDevice:
+class Device:
     ip_address: str
     udp_port: int
     last_message: float = 0
-    subscriptions: t.Dict[str, MonitorStream] = dataclasses.field(default_factory=dict)
+    subscriptions: t.Dict[str, Stream] = dataclasses.field(default_factory=dict)
 
-    def subscribe_to(self, stream: MonitorStream) -> None:
+    def subscribe_to(self, stream: Stream) -> None:
         self.subscriptions[stream.stream_id] = stream
         stream.add_subscriber(self)
 
-    def unsubscribe_from(self, stream: MonitorStream) -> None:
+    def unsubscribe_from(self, stream: Stream) -> None:
         try:
             subscription = self.subscriptions.pop(stream.stream_id)
         except KeyError:
             return
         subscription.remove_subscriber(self)
 
-    def unsubscribe_all(self) -> t.List[MonitorStream]:
+    def unsubscribe_all(self) -> t.List[Stream]:
         for subscription in self.subscriptions.values():
             subscription.remove_subscriber(self)
         old_subscriptions = [
@@ -154,30 +154,30 @@ class MonitorDevice:
 
 
 @dataclasses.dataclass
-class MonitorStream:
+class Stream:
     stream_id: str
-    subscribers: t.Dict[str, MonitorDevice] = dataclasses.field(default_factory=dict)
+    subscribers: t.Dict[str, Device] = dataclasses.field(default_factory=dict)
 
-    def add_subscriber(self, monitor: MonitorDevice) -> None:
+    def add_subscriber(self, monitor: Device) -> None:
         self.subscribers[monitor.ip_address] = monitor
 
-    def remove_subscriber(self, monitor: MonitorDevice) -> None:
+    def remove_subscriber(self, monitor: Device) -> None:
         del self.subscribers[monitor.ip_address]
 
     def has_subscribers(self) -> bool:
         return bool(self.subscribers)
 
 
-class MonitoringServer:
+class Server:
     def __init__(self, subscription_timeout: int = 3):
         self.subscription_timeout = subscription_timeout
-        self._devices: t.Dict[str, MonitorDevice] = {}
-        self._streams: t.Dict[str, MonitorStream] = {}
+        self._devices: t.Dict[str, Device] = {}
+        self._streams: t.Dict[str, Stream] = {}
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.socket.settimeout(0)
 
     def connect(self, ip_address: str, port: int) -> None:
-        device = self._devices.setdefault(ip_address, MonitorDevice(ip_address, port))
+        device = self._devices.setdefault(ip_address, Device(ip_address, port))
         device.heartbeat()
 
     def dispatch_to_monitors(self, stream_id: str, data: bytes) -> None:
@@ -196,7 +196,7 @@ class MonitoringServer:
             device = self._devices[ip_address]
         except KeyError:
             return
-        stream = self._streams.setdefault(stream_id, MonitorStream(stream_id))
+        stream = self._streams.setdefault(stream_id, Stream(stream_id))
         device.subscribe_to(stream)
 
     def unsubscribe_from_stream(self, ip_address: str, stream_id: str) -> None:
@@ -209,7 +209,7 @@ class MonitoringServer:
         device.unsubscribe_from(stream)
         self._clean_stream(stream)
 
-    def _clean_stream(self, stream: MonitorStream) -> None:
+    def _clean_stream(self, stream: Stream) -> None:
         if not stream.has_subscribers():
             del self._streams[stream.stream_id]
 
@@ -239,13 +239,13 @@ class MonitoringServer:
             await asyncio.sleep(self.subscription_timeout / 4)
 
 
-class MonitorConnectionProtocol(asyncio.Protocol):
+class ConnectionProtocol(asyncio.Protocol):
     PORT_SIZE = 2
     SEPPERATOR = b"\n"
     DEFAULT_RESPONSE = "acc"
     transport: asyncio.Transport
 
-    def __init__(self, monitoring_server: MonitoringServer, keepalive_port: int):
+    def __init__(self, monitoring_server: Server, keepalive_port: int):
         super().__init__()
         self._monitoring_server = monitoring_server
         self._current_package = b""
@@ -258,11 +258,11 @@ class MonitorConnectionProtocol(asyncio.Protocol):
         try:
             stream_id, port_str = arg.split(":")
         except ValueError:
-            raise MonitorCommandError("expected 'stream_id:port'")
+            raise CommandError("expected 'stream_id:port'")
         try:
             port = int(port_str)
         except ValueError:
-            raise MonitorCommandError("port should be a number")
+            raise CommandError("port should be a number")
         ip_address, _ = self.transport.get_extra_info("peername")
         self._monitoring_server.subscribe_to_stream((ip_address, port), stream_id)
         return self.DEFAULT_RESPONSE
@@ -277,31 +277,31 @@ class MonitorConnectionProtocol(asyncio.Protocol):
         try:
             udp_port = int(args)
         except ValueError:
-            raise MonitorCommandError("port needs to be an int")
+            raise CommandError("port needs to be an int")
         ip_address, _ = self.transport.get_extra_info("peername")
         self._monitoring_server.connect(ip_address, udp_port)
         return str(self._keepalive_port)
 
-    def execute_command(self, command: MonitorCommand) -> str:
-        if command.verb == MonitorCommandVerb.SUBSCRIBE:
+    def execute_command(self, command: Command) -> str:
+        if command.verb == CommandVerb.SUBSCRIBE:
             return self._subscribe(command.arg)
-        if command.verb == MonitorCommandVerb.UNSUBSCRIBE:
+        if command.verb == CommandVerb.UNSUBSCRIBE:
             return self._unsubscribe(command.arg)
-        if command.verb == MonitorCommandVerb.CONNECT:
+        if command.verb == CommandVerb.CONNECT:
             return self._connect(command.arg)
 
     def respond_error(self, error: Exception) -> None:
         self.transport.write(
-            MonitorCommandResponse(
-                MonitorCommandResponseType.ERROR, str(e)
+            CommandResponse(
+                CommandResponseType.ERROR, str(e)
             )
         )
         self.transport.close()
 
     def respond_success(self, data: str) -> None:
         self.transport.write(
-            MonitorCommandResponse(
-                MonitorCommandResponseType.SUCCESS, bytes(data, "utf-8")
+            CommandResponse(
+                CommandResponseType.SUCCESS, bytes(data, "utf-8")
             )
         )
         self.transport.close()
@@ -313,13 +313,13 @@ class MonitorConnectionProtocol(asyncio.Protocol):
         if not packages:
             return
         try:
-            command = MonitorCommand.from_bytes(data)
+            command = Command.from_bytes(data)
         except CommandParseError as e:
             self.respond_error(e)
             return
         try:
             response = self.execute_command(command)
-        except MonitorCommandError as e:
+        except CommandError as e:
             self.respond_error(e)
         else:
             self.respond_success(response)

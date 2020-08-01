@@ -24,39 +24,39 @@ def f_data():
 def f_raw_package(stream_id, data):
     stream_id_bytes = bytes(stream_id, "utf-8")
     stream_id_header = (
-        monitoring.MonitoringPackage.STREAM_ID_SIZE - len(stream_id_bytes)
+        monitoring.Package.STREAM_ID_SIZE - len(stream_id_bytes)
     ) * b"\x00" + stream_id_bytes
     return stream_id_header + data
 
 
-@pytest.fixture(name="monitoring_package")
-def f_monitoring_package(stream_id, data):
-    return monitoring.MonitoringPackage(stream_id, data)
+@pytest.fixture(name="package")
+def f_package(stream_id, data):
+    return monitoring.Package(stream_id, data)
 
 
-class TestMonitoringPackage:
+class TestPackage:
     @staticmethod
-    def test_from_bytes(raw_package, monitoring_package):
-        package = monitoring.MonitoringPackage.from_bytes(raw_package)
+    def test_from_bytes(raw_package, package):
+        package = monitoring.Package.from_bytes(raw_package)
 
-        assert package == monitoring_package
+        assert package == package
 
     @staticmethod
     @pytest.mark.parametrize(
         "raw_package",
         [
             b"",
-            b"x" * (monitoring.MonitoringPackage.STREAM_ID_SIZE - 1),
-            b"\x00" * monitoring.MonitoringPackage.STREAM_ID_SIZE,
+            b"x" * (monitoring.Package.STREAM_ID_SIZE - 1),
+            b"\x00" * monitoring.Package.STREAM_ID_SIZE,
         ],
     )
     def test_from_bytes_for_invalid_header(raw_package):
         with pytest.raises(monitoring.PackageParsingError):
-            monitoring.MonitoringPackage.from_bytes(raw_package)
+            monitoring.Package.from_bytes(raw_package)
 
     @staticmethod
-    def test_to_bytes(raw_package, monitoring_package):
-        raw_bytes = monitoring_package.to_bytes()
+    def test_to_bytes(raw_package, package):
+        raw_bytes = package.to_bytes()
 
         assert raw_package == raw_bytes
 
@@ -64,14 +64,14 @@ class TestMonitoringPackage:
     @pytest.mark.parametrize(
         "stream_id",
         [
-            "x" * (monitoring.MonitoringPackage.STREAM_ID_SIZE + 1),
-            "🐍" * monitoring.MonitoringPackage.STREAM_ID_SIZE,
+            "x" * (monitoring.Package.STREAM_ID_SIZE + 1),
+            "🐍" * monitoring.Package.STREAM_ID_SIZE,
             "",
         ],
     )
-    def test_to_bytes_for_invalid_stream_id(monitoring_package):
+    def test_to_bytes_for_invalid_stream_id(package):
         with pytest.raises(monitoring.PackageSerializationError):
-            monitoring_package.to_bytes()
+            package.to_bytes()
 
 
 @pytest.fixture(name="mock_socket")
@@ -81,7 +81,7 @@ def f_mock_socket():
 
 @pytest.fixture(name="monitoring_server")
 def f_monitoring_server(mock_socket, clock):
-    monitoring_server = monitoring.MonitoringServer()
+    monitoring_server = monitoring.Server()
     monitoring_server.socket = mock_socket
     return monitoring_server
 
@@ -108,7 +108,7 @@ def f_monitoring_server_with_subscription(monitoring_server, ipv4_address, strea
     return monitoring_server
 
 
-class TestMonitoringServer:
+class TestServer:
     @staticmethod
     def test_connect(monitoring_server, ipv4_address, udp_port):
         monitoring_server.connect(ipv4_address, udp_port)
@@ -166,25 +166,25 @@ class TestMonitoringServer:
         mock_socket.sendto.assert_called_once_with(some_data, address)
 
 
-@pytest.fixture(name="monitoring_dispatch_protocol")
-def f_monitoring_dispatch_protocol(monitoring_server):
-    return monitoring.MonitorDispachProtocol(monitoring_server)
+@pytest.fixture(name="dispatch_protocol")
+def dispatch_protocol(monitoring_server):
+    return monitoring.DispachProtocol(monitoring_server)
 
 
-class TestMonitorDispachProtocol:
+class TestDispachProtocol:
     @staticmethod
     @pytest.mark.parametrize(
-        "monitoring_server", [mock.MagicMock(spec=monitoring.MonitoringServer)]
+        "monitoring_server", [mock.MagicMock(spec=monitoring.Server)]
     )
     def test_datagram_received_with_valid_package(
-        monitoring_package,
-        monitoring_dispatch_protocol,
+        package,
+        dispatch_protocol,
         raw_package,
         monitoring_server,
     ):
-        monitoring_dispatch_protocol.datagram_received(raw_package, mock.MagicMock)
+        dispatch_protocol.datagram_received(raw_package, mock.MagicMock)
 
         monitoring_server.dispatch_to_monitors.assert_called_once_with(
-            monitoring_package.stream_id, monitoring_package.data
+            package.stream_id, package.data
         )
 

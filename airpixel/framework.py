@@ -178,7 +178,7 @@ class Config:
     @classmethod
     def load(cls, file_name: str) -> Config:
         with open(file_name) as file_:
-            return cls.from_dict(yaml.load(file_))
+            return cls.from_dict(yaml.safe_load(file_)["framework"])
 
 
 @dataclasses.dataclass

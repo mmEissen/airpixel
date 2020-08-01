@@ -237,6 +237,14 @@ python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*"
 version = "5.3.1"
 
 [[package]]
+category = "dev"
+description = "A human readable log formatter for Python"
+name = "readable-log-formatter"
+optional = false
+python-versions = "*"
+version = "0.1.4"
+
+[[package]]
 category = "main"
 description = "Alternative regular expression module, to replace re."
 name = "regex"
@@ -330,7 +338,7 @@ test = ["pytest"]
 typecheck = ["mypy"]
 
 [metadata]
-content-hash = "294a897d294e8c5fe1551cd15baea251d719ea8cfea9afb6b44d8655bbee9b7a"
+content-hash = "0bf0a668526d3cbcaa3e6f89d5197dd3e78c60e38eabe648e401339cd31dcc79"
 python-versions = "^3.8"
 
 [metadata.files]
@@ -470,6 +478,10 @@ pyyaml = [
     {file = "PyYAML-5.3.1-cp38-cp38-win32.whl", hash = "sha256:06a0d7ba600ce0b2d2fe2e78453a470b5a6e000a985dd4a4e54e436cc36b0e97"},
     {file = "PyYAML-5.3.1-cp38-cp38-win_amd64.whl", hash = "sha256:95f71d2af0ff4227885f7a6605c37fd53d3a106fcab511b8860ecca9fcf400ee"},
     {file = "PyYAML-5.3.1.tar.gz", hash = "sha256:b8eac752c5e14d3eca0e6dd9199cd627518cb5ec06add0de9d32baeee6fe645d"},
+]
+readable-log-formatter = [
+    {file = "readable-log-formatter-0.1.4.tar.gz", hash = "sha256:b9054caa2b3ad4d3e49f7d0dda5f53955396912d46a7b14b2eda814e4a1f4550"},
+    {file = "readable_log_formatter-0.1.4-py2.py3-none-any.whl", hash = "sha256:3cbbd4737074e1ffa13d62c68fa5d10019737971ac33656fe328766e18e72a89"},
 ]
 regex = [
     {file = "regex-2020.7.14-cp27-cp27m-win32.whl", hash = "sha256:e46d13f38cfcbb79bfdb2964b0fe12561fe633caf964a77a5f8d4e45fe5d2ef7"},

@@ -3,9 +3,18 @@ from __future__ import annotations
 import asyncio
 import dataclasses
 import enum
+import logging
+import logging.config
 import socket
 import time
 import typing as t
+
+import yaml
+
+from airpixel import logging_config
+
+
+log = logging.getLogger(__name__)
 
 
 class MonitoringError(Exception):
@@ -309,3 +318,84 @@ class ConnectionProtocol(asyncio.Protocol):
             self.respond_error(e)
         else:
             self.respond_success(response)
+
+
+@dataclasses.dataclass
+class Config:
+    address: str
+    port: int
+    unix_socket: str
+
+    @classmethod
+    def from_dict(cls, dict_: t.Dict[str, t.Any]) -> Config:
+        return cls(dict_["address"], dict_["port"], dict_["unix_socket"],)
+
+    @classmethod
+    def load(cls, file_name: str) -> Config:
+        with open(file_name) as file_:
+            return cls.from_dict(yaml.safe_load(file_)["monitoring"])
+
+
+class Application:
+    def __init__(self, config: Config):
+        self.config = config
+        self.monitoring_server = Server()
+
+    async def run_forever(self) -> None:
+        loop = asyncio.get_running_loop()
+
+        transport, _ = await loop.create_datagram_endpoint(
+            lambda: KeepaliveProtocol(self.monitoring_server),
+            local_addr=(self.config.address, 0),
+            family=socket.AF_INET,
+        )
+        _, keepalive_port = transport.get_extra_info("sockname")
+
+        log.info(
+            "Monitoring keepalive endpoint up on %(keepalive_port)s",
+            {"keepalive_port": keepalive_port},
+        )
+
+        await loop.create_datagram_endpoint(
+            lambda: DispachProtocol(self.monitoring_server),
+            local_addr=self.config.unix_socket,
+            family=socket.AF_UNIX,
+        )
+
+        log.info(
+            "Monitoring dispatch endpoint up on %(unix_socket)s",
+            {"unix_socket": self.config.unix_socket},
+        )
+
+        server = await loop.create_server(
+            lambda: ConnectionProtocol(self.monitoring_server, keepalive_port),
+            self.config.address,
+            self.config.port,
+        )
+
+        log.info(
+            "Monitoring server created on %(address)s:%(port)s",
+            {"address": self.config.address, "port": self.config.port},
+        )
+
+        async with server:
+            await asyncio.gather(
+                server.serve_forever(), self.monitoring_server.purge_forever()
+            )
+
+
+def main() -> None:
+    logging_config.load("airpixel.yaml")
+    config = Config.load("airpixel.yaml")
+
+    log.info("Monitoring configuration loaded")
+
+    app = Application(config)
+    try:
+        asyncio.run(app.run_forever())
+    except KeyboardInterrupt:
+        log.info("Application shut down by user (keyboard interrupt)")
+
+
+if __name__ == "__main__":
+    main()

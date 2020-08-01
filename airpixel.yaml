@@ -1,7 +1,40 @@
+framework:
+  address: "0.0.0.0"
+  port: 50000
+  udp_port: 50000
+  devices:
+      - device_id: "ring"
+        command_template: "python blink.py {ip_address} {port}"
 
-address: "0.0.0.0"
-port: 50000
-udp_port: 50000
-devices:
-    - device_id: "ring"
-      command_template: "python blink.py {ip_address} {port}"
+monitoring:
+  address: "0.0.0.0"
+  port: 50001
+  unix_socket: ./monitoring_uds
+
+
+logging:
+  version: 1
+  disable_existing_loggers: False
+
+  formatters:
+    pretty:
+      "()": readable_log_formatter.ReadableFormatter
+
+  handlers:
+    console:
+      class: logging.StreamHandler
+      level: DEBUG
+      formatter: pretty
+      stream: ext://sys.stdout
+
+  loggers:
+    airpixel:
+      level: DEBUG
+      handlers: 
+        - console
+      propagate: no
+
+  root:
+    level: INFO
+    handlers:
+      - console

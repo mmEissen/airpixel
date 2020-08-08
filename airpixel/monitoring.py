@@ -37,12 +37,18 @@ class CommandError(MonitoringError):
     pass
 
 
+class CommandResponseParseError(MonitoringError):
+    pass
+
+
+@enum.unique
 class CommandVerb(str, enum.Enum):
     SUBSCRIBE = "sub"
     UNSUBSCRIBE = "unsub"
     CONNECT = "conn"
 
 
+@enum.unique
 class CommandResponseType(bytes, enum.Enum):
     ERROR = b"err"
     SUCCESS = b"acc"
@@ -54,8 +60,22 @@ class CommandResponse:
     info: str
     SEPERATOR = b":"
 
-    def to_bytes(self) -> Command:
+    def to_bytes(self) -> bytes:
         return self.response.value + self.SEPERATOR + bytes(self.info, "utf-8")
+
+    @classmethod
+    def from_bytes(cls, data: bytes) -> CommandResponse:
+        try:
+            response, info = data.split(cls.SEPERATOR)
+        except ValueError as e:
+            raise CommandResponseParseError("Invalid command response") from e
+        try:
+            response = CommandResponseType(response)
+        except ValueError as e:
+            raise CommandResponseParseError(
+                f"Invalid command response: {response_str}"
+            ) from e
+        return cls(response, str(info, "utf-8"))
 
 
 @dataclasses.dataclass
@@ -73,7 +93,10 @@ class Command:
             verb = CommandVerb(verb_str)
         except ValueError as e:
             raise CommandParseError("Invalid command") from e
-        return cls(verb, arg)
+        return cls(verb, arg.strip())
+
+    def to_bytes(self):
+        return bytes(self.verb.value, "utf-8") + b" " + self.arg + b"\n"
 
 
 @dataclasses.dataclass
@@ -188,17 +211,24 @@ class Server:
     def connect(self, ip_address: str, port: int) -> None:
         device = self._devices.setdefault(ip_address, Device(ip_address, port))
         device.heartbeat()
+        log.debug("Monitor %s connected", ip_address)
 
     def dispatch_to_monitors(self, stream_id: str, data: bytes) -> None:
+        log.debug("dispatching for stream %s", stream_id)
         try:
             stream = self._streams[stream_id]
         except KeyError:
+            log.debug(
+                "No subscriptions for %s",
+                stream_id
+            )
             return
         for subscriber in stream.subscribers.values():
             try:
                 self.socket.sendto(data, subscriber.address())
             except OSError:
                 pass
+            log.debug("Sent data for '%s' to %s", stream_id, subscriber.ip_address)
 
     def subscribe_to_stream(self, ip_address: str, stream_id: str) -> None:
         try:
@@ -207,6 +237,7 @@ class Server:
             return
         stream = self._streams.setdefault(stream_id, Stream(stream_id))
         device.subscribe_to(stream)
+        log.debug("%s subscribed to stream %s", ip_address, stream_id)
 
     def unsubscribe_from_stream(self, ip_address: str, stream_id: str) -> None:
         try:
@@ -240,6 +271,7 @@ class Server:
             for stream in streams:
                 self._clean_stream(stream)
         for ip_address in to_kill:
+            log.debug("Killed Monitor %s", ip_address)
             del self._devices[ip_address]
 
     async def purge_forever(self) -> None:
@@ -294,11 +326,15 @@ class ConnectionProtocol(asyncio.Protocol):
         raise CommandError("unrecognized command verb")
 
     def respond_error(self, error: Exception) -> None:
-        self.transport.write(CommandResponse(CommandResponseType.ERROR, str(error)))
+        self.transport.write(
+            CommandResponse(CommandResponseType.ERROR, str(error)).to_bytes()
+        )
         self.transport.close()
 
     def respond_success(self, data: str) -> None:
-        self.transport.write(CommandResponse(CommandResponseType.SUCCESS, data))
+        self.transport.write(
+            CommandResponse(CommandResponseType.SUCCESS, data).to_bytes()
+        )
         self.transport.close()
 
     def data_received(self, data: bytes) -> None:

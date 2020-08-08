@@ -6,7 +6,7 @@ import time
 
 import numpy as np  # type: ignore
 
-from airpixel import gamma_table
+from airpixel import gamma_table, monitoring
 
 
 class UDPConstants:
@@ -96,3 +96,19 @@ class AirClient:
         )
         self.send_bytes(frame_number + bytes(raw_pixels))
         self.frame_number += 1
+
+
+class MonitorClient:
+    def __init__(self, socket_address: str):
+        self.socket_address = socket_address
+        self.socket = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+        self.socket.settimeout(0)
+
+    def send_bytes(self, message: bytes) -> None:
+        try:
+            self.socket.sendto(message, self.socket_address)
+        except OSError:
+            pass
+
+    def send_data(self, stream_id: str, data: bytes) -> None:
+        self.send_bytes(monitoring.Package(stream_id, data).to_bytes())

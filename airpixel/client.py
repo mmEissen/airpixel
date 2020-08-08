@@ -66,31 +66,6 @@ class Pixel:
         )
 
 
-class LoopingThread(threading.Thread, abc.ABC):
-    def __init__(self, *args: t.Any, **kwargs: t.Any):
-        super().__init__(*args, daemon=True, **kwargs)
-        self._is_running = False
-
-    @abc.abstractmethod
-    def loop(self) -> None:
-        pass
-
-    def setup(self) -> None:
-        self._is_running = True
-
-    def tear_down(self) -> None:
-        pass
-
-    def run(self) -> None:
-        self.setup()
-        while self._is_running:
-            self.loop()
-        self.tear_down()
-
-    def stop(self) -> None:
-        self._is_running = False
-
-
 class AirClient:
     def __init__(
         self,
@@ -121,28 +96,3 @@ class AirClient:
         )
         self.send_bytes(frame_number + bytes(raw_pixels))
         self.frame_number += 1
-
-
-class AutoClient(LoopingThread):
-    SLEEP = 0.035
-
-    def begin(
-        self,
-        remote_ip: str,
-        remote_port: int,
-        color_method: t.Type[ColorMethod] = ColorMethodGRB,
-    ) -> None:
-        self._client = AirClient(remote_ip, remote_port, color_method)
-        self._frame = [Pixel(0, 0, 0)]
-        self._lock = threading.Lock()
-
-        self.start()
-
-    def show_frame(self, frame: t.Iterable[Pixel]) -> None:
-        with self._lock:
-            self._frame = list(frame)
-
-    def loop(self) -> None:
-        with self._lock:
-            self._client.show_frame(self._frame)
-        time.sleep(self.SLEEP)

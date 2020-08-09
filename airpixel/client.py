@@ -111,4 +111,5 @@ class MonitorClient:
             pass
 
     def send_data(self, stream_id: str, data: bytes) -> None:
-        self.send_bytes(monitoring.Package(stream_id, data).to_bytes())
+        bytes_ = monitoring.Package(stream_id, data).to_bytes()
+        self.send_bytes(bytes_)

@@ -4,7 +4,7 @@ framework:
   udp_port: 50000
   devices:
       - device_id: "ring"
-        command_template: "python blink.py {ip_address} {port}"
+        command_template: "python airpixel/dummy.py {ip_address} {port}"
 
 monitoring:
   address: "0.0.0.0"

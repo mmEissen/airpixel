@@ -104,26 +104,25 @@ class Package:
     stream_id: str
     data: bytes
 
-    STREAM_ID_SIZE = 128
+    SEPARATOR = b"\x00"
 
     @classmethod
     def from_bytes(cls, raw_data: bytes) -> Package:
-        if len(raw_data) < cls.STREAM_ID_SIZE:
-            raise PackageParsingError("The package is invalid: Too short")
-        header = raw_data[: cls.STREAM_ID_SIZE].lstrip(b"\x00")
+        try:
+            header, data = raw_data.split(cls.SEPARATOR, 1)
+        except ValueError as e:
+            raise PackageParsingError("Invalid package") from e
         if not header:
             raise PackageParsingError("The package is invalid: No stream ID")
-        return cls(str(header, "utf_8"), raw_data[cls.STREAM_ID_SIZE :])
+        return cls(str(header, "utf-8"), data)
 
     def to_bytes(self) -> bytes:
         if not self.stream_id:
             raise PackageSerializationError("stream_id can't be empty")
         stream_id_bytes = bytes(self.stream_id, "utf-8")
-        if len(stream_id_bytes) > self.STREAM_ID_SIZE:
-            raise PackageSerializationError("stream_id is too long")
         return (
-            (self.STREAM_ID_SIZE - len(stream_id_bytes)) * b"\x00"
-            + stream_id_bytes
+            stream_id_bytes
+            + self.SEPARATOR
             + self.data
         )
 
@@ -137,8 +136,9 @@ class DispachProtocol(asyncio.DatagramProtocol):
         try:
             package = Package.from_bytes(data)
         except PackageParsingError:
+            log.debug("Invalid package", exc_info=True)
             return
-        self._monitoring_server.dispatch_to_monitors(package.stream_id, package.data)
+        self._monitoring_server.dispatch_to_monitors(package.stream_id, data)
 
 
 class KeepaliveProtocol(asyncio.DatagramProtocol):

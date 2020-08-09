@@ -12,6 +12,8 @@ mypy = {version = "^0.770", optional = true}
 flake8 = {version = "^3.8.1", optional = true}
 numpy = "^1.19.1"
 pyyaml = "^5.3.1"
+pyqtgraph = {version = "^0.11.0", optional = true}
+pyqt5 = {version = "^5.15.0", optional = true}
 
 [tool.poetry.dev-dependencies]
 tox = "^3.15.0"
@@ -21,6 +23,7 @@ readable-log-formatter = "^0.1.4"
 test = ["pytest"]
 typecheck = ["mypy"]
 lint = ["black", "flake8"]
+monitoring = ["pyqt5", "pyqtgraph"]
 
 [tool.tox]
 legacy_tox_ini = """

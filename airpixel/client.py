@@ -1,4 +1,5 @@
 import abc
+import io
 import socket
 import typing as t
 import threading
@@ -113,3 +114,8 @@ class MonitorClient:
     def send_data(self, stream_id: str, data: bytes) -> None:
         bytes_ = monitoring.Package(stream_id, data).to_bytes()
         self.send_bytes(bytes_)
+
+    def send_np_array(self, stream_id: str, data: np.array) -> None:
+        file_ = io.BytesIO()
+        np.save(file_, data, False)
+        self.send_data(stream_id, file_.getvalue())

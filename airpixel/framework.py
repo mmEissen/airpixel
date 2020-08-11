@@ -136,7 +136,6 @@ class ConnectionProtocol(asyncio.Protocol):
         self.response_port = response_port
 
     def connection_made(self, transport: asyncio.BaseTransport) -> None:
-        log.info("New connection")
         self.transport = t.cast(asyncio.Transport, transport)
 
     def _register_device(self, registration_bytes: bytes) -> None:
@@ -147,6 +146,7 @@ class ConnectionProtocol(asyncio.Protocol):
         self.transport.write(
             int.to_bytes(self.response_port, self.PORT_SIZE, BYTEORDER)
         )
+        log.info("Registered device %s", device_id)
 
     def data_received(self, data: bytes) -> None:
         *packages, self._current_package = (self._current_package + data).split(

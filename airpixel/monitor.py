@@ -14,6 +14,8 @@ import yaml
 
 from pyqtgraph.Qt import QtGui
 import pyqtgraph as pg
+from PyQt5 import QtCore
+import numpy as np
 
 from airpixel import monitoring
 
@@ -33,7 +35,7 @@ class PlotProtocol(asyncio.DatagramProtocol):
         memfile.seek(0)
         array = numpy.load(memfile)
         
-        self.plots[package.stream_id].plot_array(array)
+        self.plots[package.stream_id].new_data.emit(array)
 
 
 class MonitorServer:
@@ -115,6 +117,8 @@ class Config:
 
 
 class SimplePlot(pg.PlotWidget):
+    new_data = QtCore.pyqtSignal(np.ndarray)
+
     def __init__(self, stream_id: str):
         super().__init__(title=stream_id)
         self.stream_id = stream_id
@@ -138,11 +142,13 @@ class Application:
 
         self.q_app = q_app
         self.top_widget = QtGui.QWidget()
+        self.top_widget.resize(1800, 900)
 
         self.layout = QtGui.QGridLayout()
         self.top_widget.setLayout(self.layout)
         for i, stream in enumerate(self.config.streams):
             self.plots[stream.name] = SimplePlot(stream.name)
+            self.plots[stream.name].new_data.connect(self.plots[stream.name].plot_array)
             self.layout.addWidget(self.plots[stream.name], i, 0)
 
     def run_forever(self) -> None:

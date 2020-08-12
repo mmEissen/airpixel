@@ -123,14 +123,14 @@ class SimplePlot(pg.PlotWidget):
         super().__init__(title=stream_id)
         self.stream_id = stream_id
         self._current_max_y = 0
-        self._curve = self.plot(pen="y")
+        self._curve = self.plot(np.array([0]), np.array([]), pen="y", fillLevel=0, fillBrush="y", stepMode=True)
 
     def _fit_plot(self, points):
         self._current_max_y = max(max(points), self._current_max_y)
         self.setRange(yRange=(0, self._current_max_y))
 
     def plot_array(self, data):
-        self._curve.setData(data)
+        self._curve.setData(np.arange(len(data) + 1), data)
         self._fit_plot(data)
 
 

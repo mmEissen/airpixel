@@ -11,4 +11,4 @@ monitor:
         # - name: max
         - name: normalized
         - name: square
-        - name: fade
+        - name: log

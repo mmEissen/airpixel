@@ -27,5 +27,5 @@ jobs:
       - name: Publish
         run: poetry publish
         if: github.ref == 'ref/heads/master'
-        with:
+        env:
           POETRY_PYPI_TOKEN_PYPI: ${{ secrets.PYPI_TOKEN }}

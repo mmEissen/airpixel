@@ -23,10 +23,7 @@ def f_data():
 @pytest.fixture(name="raw_package")
 def f_raw_package(stream_id, data):
     stream_id_bytes = bytes(stream_id, "utf-8")
-    stream_id_header = (
-        monitoring.Package.STREAM_ID_SIZE - len(stream_id_bytes)
-    ) * b"\x00" + stream_id_bytes
-    return stream_id_header + data
+    return stream_id_bytes + b"\x00" + data
 
 
 @pytest.fixture(name="package")
@@ -43,12 +40,7 @@ class TestPackage:
 
     @staticmethod
     @pytest.mark.parametrize(
-        "raw_package",
-        [
-            b"",
-            b"x" * (monitoring.Package.STREAM_ID_SIZE - 1),
-            b"\x00" * monitoring.Package.STREAM_ID_SIZE,
-        ],
+        "raw_package", [b"", b"no_separator", b"\x00only data"],
     )
     def test_from_bytes_for_invalid_header(raw_package):
         with pytest.raises(monitoring.PackageParsingError):
@@ -62,12 +54,7 @@ class TestPackage:
 
     @staticmethod
     @pytest.mark.parametrize(
-        "stream_id",
-        [
-            "x" * (monitoring.Package.STREAM_ID_SIZE + 1),
-            "🐍" * monitoring.Package.STREAM_ID_SIZE,
-            "",
-        ],
+        "stream_id", [""],
     )
     def test_to_bytes_for_invalid_stream_id(package):
         with pytest.raises(monitoring.PackageSerializationError):
@@ -185,5 +172,5 @@ class TestDispachProtocol:
         dispatch_protocol.datagram_received(raw_package, mock.MagicMock)
 
         monitoring_server.dispatch_to_monitors.assert_called_once_with(
-            package.stream_id, package.data
+            package.stream_id, raw_package
         )

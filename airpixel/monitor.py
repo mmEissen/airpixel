@@ -2,44 +2,44 @@ from __future__ import annotations
 
 import asyncio
 import socket
-import sys
-import time
 import typing as t
-import numpy
 import dataclasses
 import io
 import threading
 
 import yaml
 
-from pyqtgraph.Qt import QtGui
-import pyqtgraph as pg
-from PyQt5 import QtCore
-import numpy as np
+import pyqtgraph as pg  # type: ignore
+import numpy as np  # type: ignore
+from pyqtgraph.Qt import QtGui  # type: ignore
+from PyQt5 import QtCore  # type: ignore
 
 from airpixel import monitoring
 
 
+_PlotDict = t.Dict[str, "SimplePlot"]
+
+
 class PlotProtocol(asyncio.DatagramProtocol):
-    def __init__(self, plots):
+    def __init__(self, plots: _PlotDict):
         self.plots = plots
 
     def datagram_received(self, data: bytes, addr: t.Tuple[str, int]) -> None:
         package = monitoring.Package.from_bytes(data)
 
-        if package.stream_id not in self.plots: 
+        if package.stream_id not in self.plots:
             return
 
         memfile = io.BytesIO()
         memfile.write(package.data)
         memfile.seek(0)
-        array = numpy.load(memfile)
-        
+        array = np.load(memfile)
+
         self.plots[package.stream_id].new_data.emit(array)
 
 
 class MonitorServer:
-    def __init__(self, ip_address, port, plots):
+    def __init__(self, ip_address: str, port: int, plots: _PlotDict):
         self.ip_address = ip_address
         self.port = port
         self.plots = plots
@@ -47,10 +47,12 @@ class MonitorServer:
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.socket.settimeout(0)
 
-    async def run_forever(self):
+    async def run_forever(self) -> None:
         loop = asyncio.get_running_loop()
         transport, _ = await loop.create_datagram_endpoint(
-            lambda: PlotProtocol(self.plots), local_addr=("0.0.0.0", 0), family=socket.AF_INET,
+            lambda: PlotProtocol(self.plots),
+            local_addr=("0.0.0.0", 0),
+            family=socket.AF_INET,
         )
         _, self.local_port = transport.get_extra_info("sockname")
 
@@ -63,27 +65,26 @@ class MonitorServer:
             self.socket.sendto(b"", (self.ip_address, keepalive_port))
             await asyncio.sleep(1)
 
-    def subscribe(self, stream_id):
+    def subscribe(self, stream_id: str) -> None:
         with socket.create_connection((self.ip_address, int(self.port))) as sock:
             sock.send(
                 monitoring.Command(
-                    monitoring.CommandVerb.SUBSCRIBE, bytes(stream_id, "utf-8")
+                    monitoring.CommandVerb.SUBSCRIBE, stream_id
                 ).to_bytes()
             )
 
-    def connect(self):
+    def connect(self) -> int:
         with socket.create_connection((self.ip_address, int(self.port))) as sock:
             sock.send(
                 monitoring.Command(
-                    monitoring.CommandVerb.CONNECT,
-                    bytes(f"{self.local_port}", "utf-8"),
+                    monitoring.CommandVerb.CONNECT, str(self.local_port),
                 ).to_bytes()
             )
             response_data = sock.recv(128)
         response = monitoring.CommandResponse.from_bytes(response_data)
         return int(response.info)
 
-    def run(self):
+    def run(self) -> None:
         asyncio.run(self.run_forever())
 
 
@@ -123,21 +124,28 @@ class SimplePlot(pg.PlotWidget):
         super().__init__(title=stream_id)
         self.stream_id = stream_id
         self._current_max_y = 0
-        self._curve = self.plot(np.array([0]), np.array([]), pen="y", fillLevel=0, fillBrush="y", stepMode=True)
+        self._curve = self.plot(
+            np.array([0]),
+            np.array([]),
+            pen="y",
+            fillLevel=0,
+            fillBrush="y",
+            stepMode=True,
+        )
 
-    def _fit_plot(self, points):
+    def _fit_plot(self, points: np.ndarray) -> None:
         self._current_max_y = max(max(points), self._current_max_y)
         self.setRange(yRange=(0, self._current_max_y))
 
-    def plot_array(self, data):
+    def plot_array(self, data: np.ndarray) -> None:
         self._curve.setData(np.arange(len(data) + 1), data)
         self._fit_plot(data)
 
 
 class Application:
-    def __init__(self, config: Config, q_app):
+    def __init__(self, config: Config, q_app: QtGui.QApplication):
         self.config = config
-        self.plots = {}
+        self.plots: _PlotDict = {}
         self.server = MonitorServer(self.config.server, self.config.port, self.plots)
 
         self.q_app = q_app

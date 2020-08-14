@@ -31,7 +31,7 @@ class Config:
             return cls.from_dict(yaml.safe_load(file_))
 
 
-async def main():
+async def main() -> None:
     logging_config.load("airpixel.yaml")
     config = Config.load("airpixel.yaml")
     framework_app = framework.Application(config.framework_config)

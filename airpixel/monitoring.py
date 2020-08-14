@@ -73,7 +73,7 @@ class CommandResponse:
             response = CommandResponseType(response)
         except ValueError as e:
             raise CommandResponseParseError(
-                f"Invalid command response: {response_str}"
+                f"Invalid command response: {str(response, 'utf-8')}"
             ) from e
         return cls(response, str(info, "utf-8"))
 
@@ -95,8 +95,8 @@ class Command:
             raise CommandParseError("Invalid command") from e
         return cls(verb, arg.strip())
 
-    def to_bytes(self):
-        return bytes(self.verb.value, "utf-8") + b" " + self.arg + b"\n"
+    def to_bytes(self) -> bytes:
+        return bytes(self.verb.value, "utf-8") + b" " + bytes(self.arg, "utf-8") + b"\n"
 
 
 @dataclasses.dataclass
@@ -120,11 +120,7 @@ class Package:
         if not self.stream_id:
             raise PackageSerializationError("stream_id can't be empty")
         stream_id_bytes = bytes(self.stream_id, "utf-8")
-        return (
-            stream_id_bytes
-            + self.SEPARATOR
-            + self.data
-        )
+        return stream_id_bytes + self.SEPARATOR + self.data
 
 
 class DispachProtocol(asyncio.DatagramProtocol):
@@ -218,10 +214,7 @@ class Server:
         try:
             stream = self._streams[stream_id]
         except KeyError:
-            log.debug(
-                "No subscriptions for %s",
-                stream_id
-            )
+            log.debug("No subscriptions for %s", stream_id)
             return
         for subscriber in stream.subscribers.values():
             try:
@@ -394,7 +387,7 @@ class Application:
 
         await loop.create_datagram_endpoint(
             lambda: DispachProtocol(self.monitoring_server),
-            local_addr=self.config.unix_socket,
+            local_addr=t.cast(t.Any, self.config.unix_socket),
             family=socket.AF_UNIX,
         )
 

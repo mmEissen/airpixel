@@ -2,8 +2,6 @@ import abc
 import io
 import socket
 import typing as t
-import threading
-import time
 
 import numpy as np  # type: ignore
 

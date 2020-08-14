@@ -1,0 +1,48 @@
+name: Package Release
+
+on:
+  pull_request:
+    branches: 
+      - master
+  push:
+    branches:
+      - master
+
+jobs:
+  quality_assurance:
+    runs-on: ubuntu-latest
+    container:
+      image:  python:3.8-buster
+    steps:
+      - run: echo ${{ github.ref }}
+      - name: Install Poetry
+        uses: dschep/install-poetry-action@v1.3
+      - name: Disable Venv Creation
+        run: poetry config virtualenvs.create false
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Install
+        run: poetry install
+      - name: Lint/Test
+        run: TOX_PARALLEL_NO_SPINNER=1 poetry run tox -p
+  
+  build_and_publish:
+    runs-on: ubuntu-latest
+    container:
+      image:  python:3.8-buster
+    steps:
+      - run: echo ${{ github.ref }}
+      - name: Install Poetry
+        uses: dschep/install-poetry-action@v1.3
+      - name: Disable Venv Creation
+        run: poetry config virtualenvs.create false
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Install
+        run: poetry install
+      - name: Build
+        run: poetry build
+      - name: Publish
+        run: poetry publish
+        env:
+          POETRY_PYPI_TOKEN_PYPI: ${{ secrets.PYPI_TOKEN }}

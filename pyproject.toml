@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "airpixel"
-version = "0.9"
+version = "0.8"
 description = "Controll LEDs with arduinoNanoIOT and Python"
 authors = []
 

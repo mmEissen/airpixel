@@ -26,6 +26,6 @@ jobs:
         run: poetry build
       - name: Publish
         run: poetry publish
-        if: {{ github.ref == 'ref/head/master' }}
+        if: github.ref == 'ref/heads/master'
         with:
           POETRY_PYPI_TOKEN_PYPI: ${{ secrets.PYPI_TOKEN }}

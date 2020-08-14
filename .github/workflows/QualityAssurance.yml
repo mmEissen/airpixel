@@ -1,8 +1,6 @@
-name: CI
+name: Quality Assurance
 
 on:
-  push:
-    branches: [ master ]
   pull_request:
     branches: [ master ]
 
@@ -22,10 +20,3 @@ jobs:
         run: poetry install
       - name: Lint/Test
         run: TOX_PARALLEL_NO_SPINNER=1 poetry run tox -p
-      - name: Build
-        run: poetry build
-      - name: Publish
-        run: poetry publish
-        if: github.ref == 'ref/heads/master'
-        env:
-          POETRY_PYPI_TOKEN_PYPI: ${{ secrets.PYPI_TOKEN }}

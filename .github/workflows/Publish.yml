@@ -1,0 +1,27 @@
+name: Publish
+
+on:
+  push:
+    branches: [ master ]
+
+jobs:
+  Build:
+    runs-on: ubuntu-latest
+    container:
+      image:  python:3.8-buster
+    steps:
+      - name: Install Poetry
+        uses: dschep/install-poetry-action@v1.3
+      - name: Disable Venv Creation
+        run: poetry config virtualenvs.create false
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Install
+        run: poetry install
+      - name: Build
+        run: poetry build
+      - name: Publish
+        run: poetry Publish
+        if: github.ref == 'ref/head/master'
+        with:
+          POETRY_PYPI_TOKEN_PYPI: ${{ secrets.PYPI_TOKEN }}

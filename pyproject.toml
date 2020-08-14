@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "airpixel"
-version = "0.1.0"
-description = "A basic package template"
+version = "0.8"
+description = "Controll LEDs with arduinoNanoIOT and Python"
 authors = []
 
 [tool.poetry.dependencies]

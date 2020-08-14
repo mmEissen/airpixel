@@ -1,29 +1,26 @@
-# This is a basic workflow to help you get started with Actions
-
 name: CI
 
-# Controls when the action will run. Triggers the workflow on push or pull request
-# events but only for the master branch
 on:
   push:
     branches: [ master ]
   pull_request:
     branches: [ master ]
 
-# A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
-  lint:
+  Build:
     runs-on: ubuntu-latest
+    container:
+      image:  python:3.8-buster
     steps:
-      - name: Install Deps
-        uses: abatilo/actions-poetry@v1.0.0
-        with:
-          python_version: 3.8.0
-          poetry_version: 1.0
-          args: install
-      - name: Run
-        uses: abatilo/actions-poetry@v1.0.0
-        with:
-          python_version: 3.8.0
-          poetry_version: 1.0
-          args: run tox -p -e lint -e format -e typecheck
+      - name: Install Poetry
+        uses: dschep/install-poetry-action@v1.3
+      - name: Disable Venv Creation
+        run: poetry config virtualenvs.create false
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Install
+        run: poetry install
+      - name: Lint/Test
+        run: TOX_PARALLEL_NO_SPINNER=1 poetry run tox -p
+      - name: Build
+        run: poetry build

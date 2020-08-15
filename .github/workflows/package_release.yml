@@ -34,6 +34,7 @@ jobs:
   
   build_and_publish:
     if: github.ref == 'refs/heads/master'
+    needs: quality_assurance
     runs-on: ubuntu-latest
     container:
       image:  python:3.8-buster

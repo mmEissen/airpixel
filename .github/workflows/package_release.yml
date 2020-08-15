@@ -14,15 +14,28 @@ jobs:
     container:
       image:  python:3.8-buster
     steps:
-      - run: echo ${{ github.ref }}
       - name: Install Poetry
         uses: dschep/install-poetry-action@v1.3
-      - name: Disable Venv Creation
-        run: poetry config virtualenvs.create false
       - name: Checkout
         uses: actions/checkout@v2
       - name: Install
         run: poetry install
+      - name: Check Version
+        run: |
+          package_name=$(poetry version --no-ansi | grep --color=never -Po "^\S*")
+          this_version=$(poetry version --no-ansi | grep --color=never -Po "([0-9]|\.)+")
+          remote_version=$(poetry search $package_name --no-ansi | grep --color=never -Po "([0-9]|\.)+")
+          version_less_or_equal() {
+            [  "$1" = "`echo -e "$1\n$2" | sort -V | head -n1`" ]
+          }
+
+          version_less_than() {
+            [ "$1" = "$2" ] && return 1 || version_less_or_equal $1 $2
+          }
+
+          echo This version: $this_version
+          echo Remote version: $remote_version
+          version_less_than remote_version this_version
       - name: Lint/Test
         run: TOX_PARALLEL_NO_SPINNER=1 poetry run tox -p
   
@@ -32,11 +45,8 @@ jobs:
     container:
       image:  python:3.8-buster
     steps:
-      - run: echo ${{ github.ref }}
       - name: Install Poetry
         uses: dschep/install-poetry-action@v1.3
-      - name: Disable Venv Creation
-        run: poetry config virtualenvs.create false
       - name: Checkout
         uses: actions/checkout@v2
       - name: Install

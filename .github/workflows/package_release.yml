@@ -14,28 +14,59 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image:  python:3.8-buster
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - name: Install Poetry
-        uses: snok/install-poetry@v1.1.1
+        uses: Gr1N/setup-poetry@v4
       - name: Checkout
         uses: actions/checkout@v2
       - name: Install
         run: poetry install
       - name: Check Version
+        id: version
         run: |
           package_name=$(poetry version --no-ansi | grep --color=never -Po "^\S*")
           this_version=$(poetry version --no-ansi | grep --color=never -Po "([0-9]|\.)+")
           remote_version=$(poetry search $package_name --no-ansi | grep --color=never -Po "([0-9]|\.)+")
 
+          echo "::set-output name=version::${this_version}"
           echo This version: $this_version
           echo Remote version: $remote_version
           dpkg --compare-versions $this_version gt $remote_version
       - name: Lint/Test
         run: TOX_PARALLEL_NO_SPINNER=1 poetry run tox -p
   
+  build_and_publish_docker:
+    runs-on: ubuntu-latest
+    needs: quality_assurance
+    steps:
+      - 
+        name: Checkout
+        uses: actions/checkout@v2
+      -
+        name: Login to DockerHub
+        uses: docker/login-action@v1 
+        with:
+          username: mmeissen
+          password: ${{ secrets.DOCKER_HUB_TOKEN }}
+      - 
+        name: Build and push Docker images
+        id: docker_build
+        uses: docker/build-push-action@v2.1.0
+        with:
+          context: ./ArduinoNanoIOT
+          file: ./ArduinoNanoIOT/Dockerfile
+          push: ${{ github.ref == 'refs/heads/master' }}
+          tags: |
+            mmeissen/upload-airpixel-arduino-nano-iot:latest
+            mmeissen/upload-airpixel-arduino-nano-iot:${{needs.quality_assurance.outputs.version}}
+
   build_and_publish:
     if: github.ref == 'refs/heads/master'
-    needs: quality_assurance
+    needs:
+      - quality_assurance
+      - build_and_publish_docker
     runs-on: ubuntu-latest
     container:
       image:  python:3.8-buster

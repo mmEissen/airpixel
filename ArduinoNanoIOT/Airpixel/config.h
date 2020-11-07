@@ -4,6 +4,8 @@
 // Set to 0 for improved performance (roughly x6 improvement in maximum refresh rate)
 #define DEBUG_MODE 0
 
+#define PIXEL_COUNT 288
+
 #define SERVER_TCP_IP "192.168.4.1"
 #define SERVER_TCP_PORT 50000
 

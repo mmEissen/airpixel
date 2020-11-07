@@ -22,6 +22,7 @@ def to_bytes(string: str) -> bytes:
 class Config:
     device_id: str
 
+    pixel_count: int = 288
     debug_mode: bool = False
     server_ip: str = "192.168.4.1"
     server_port: int = 50000
@@ -43,6 +44,7 @@ class Config:
             f"#define LED_PIN {self.led_pin}\n"
             f"#define STATUS_1_PIN {self.status_1_pin}\n"
             f"#define STATUS_2_PIN {self.status_2_pin}\n"
+            f'#define PIXEL_COUNT {self.pixel_count}\n'
         )
 
 

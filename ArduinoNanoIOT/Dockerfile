@@ -23,5 +23,4 @@ COPY run.py /ArduinoNanoIOT/run.py
 
 WORKDIR /ArduinoNanoIOT
 
-# arduino-cli compile -b arduino:samd:nano_33_iot
-ENTRYPOINT ["bash"]
+ENTRYPOINT ["python", "run.py"]

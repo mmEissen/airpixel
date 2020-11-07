@@ -15,7 +15,7 @@ class NoDeviceError(Exception):
 
 
 def to_bytes(string: str) -> bytes:
-    return bytes(string, "utf-8")
+    return bytes(string, "utf-8").decode("unicode_escape")
 
 
 @dataclasses.dataclass
@@ -75,7 +75,9 @@ def find_device():
 @click.command()
 @click.argument("device_id", required=True)
 def main(device_id):
-    write_config(Config(device_id))
+    config = Config(device_id)
+    print(config.to_string())
+    write_config(config)
     device_adress = find_device()
     print(f"Found an Arduino NANO 33 IoT at {device_adress}.")
     print("Compiling...")

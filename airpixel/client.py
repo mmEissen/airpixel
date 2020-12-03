@@ -84,17 +84,22 @@ class AirClient:
             self.socket.sendto(message, (self.remote_ip, self.remote_port))
         except OSError:
             pass
+    
+    def _frame_number_bytes(self) -> bytes:
+        return self.frame_number.to_bytes(
+            UDPConstants.FRAME_NUMBER_BYTES, byteorder=UDPConstants.ENCODING_BYTEORDER
+        )
+
+    def show_bytes(self, message: bytes) -> None:
+        self.send_bytes(self._frame_number_bytes() + message)
+        self.frame_number += 1
 
     def show_frame(self, frame: t.List[Pixel]) -> None:
         raw_pixels = np.concatenate(
             [self.color_method.to_bytes(pixel) for pixel in frame]
         )
         raw_pixels = gamma_table.GAMMA_TABLE[(raw_pixels * 255).astype("uint8")]
-        frame_number = self.frame_number.to_bytes(
-            UDPConstants.FRAME_NUMBER_BYTES, byteorder=UDPConstants.ENCODING_BYTEORDER
-        )
-        self.send_bytes(frame_number + bytes(raw_pixels))
-        self.frame_number += 1
+        self.show_bytes(bytes(raw_pixels))
 
 
 class MonitorClient:

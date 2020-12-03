@@ -2,13 +2,6 @@ monitor:
     server: "0.0.0.0"
     port: 50001
     streams:
-        # - name: mic
-        # - name: fft
-        # - name: a-weighting
-        # - name: sampled
-        # - name: smoothed
-        # - name: folded
-        # - name: max
         - name: normalized
         - name: square
         - name: log

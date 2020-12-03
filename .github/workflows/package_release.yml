@@ -15,7 +15,7 @@ jobs:
       image:  python:3.8-buster
     steps:
       - name: Install Poetry
-        uses: dschep/install-poetry-action@v1.3
+        uses: snok/install-poetry@v1.1.1
       - name: Checkout
         uses: actions/checkout@v2
       - name: Install
@@ -40,7 +40,7 @@ jobs:
       image:  python:3.8-buster
     steps:
       - name: Install Poetry
-        uses: dschep/install-poetry-action@v1.3
+        uses: snok/install-poetry@v1.1.1
       - name: Checkout
         uses: actions/checkout@v2
       - name: Install

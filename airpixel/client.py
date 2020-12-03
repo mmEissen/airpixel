@@ -84,7 +84,7 @@ class AirClient:
             self.socket.sendto(message, (self.remote_ip, self.remote_port))
         except OSError:
             pass
-    
+
     def _frame_number_bytes(self) -> bytes:
         return self.frame_number.to_bytes(
             UDPConstants.FRAME_NUMBER_BYTES, byteorder=UDPConstants.ENCODING_BYTEORDER

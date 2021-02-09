@@ -21,7 +21,6 @@ def to_bytes(string: str) -> bytes:
 @dataclasses.dataclass
 class Config:
     device_id: str
-
     pixel_count: int = 288
     debug_mode: bool = False
     server_ip: str = "192.168.4.1"
@@ -75,9 +74,30 @@ def find_device():
 
 
 @click.command()
-@click.argument("device_id", required=True)
-def main(device_id):
-    config = Config(device_id)
+@click.option("--device-id", prompt="Device ID")
+@click.option("--pixel-count", prompt="How many LEDs?", type=int)
+@click.option("--server-ip", prompt="IP address of the server", type=str)
+@click.option("--server-port", prompt="Port the server is listening on", type=int, default=50000)
+@click.option("--wifi-ssid", prompt="WiFi SSID", type=str)
+@click.option("--wifi-password", prompt="WiFi Password", type=str)
+@click.option("--led-pin", prompt="Pin that the LEDs are connected to", type=int, default=2)
+@click.option("--status-1-pin", prompt="Pin for Status led (1/2)", type=int, default=3)
+@click.option("--status-2-pin", prompt="Pin for Status led (2/2)", type=int, default=4)
+@click.option("--debug-mode", prompt="Enable serial monitor?", type=bool, default=False)
+def main(device_id, pixel_count, server_ip, server_port, wifi_ssid, wifi_password, led_pin, status_1_pin, status_2_pin, debug_mode,
+):
+    config = Config(
+        device_id,
+        pixel_count=pixel_count,
+        server_ip=server_ip,
+        server_port=server_port,
+        wifi_ssid=wifi_ssid,
+        wifi_password=wifi_password,
+        led_pin=led_pin,
+        status_1_pin=status_1_pin,
+        status_2_pin=status_2_pin,
+        debug_mode=debug_mode,
+    )
     print(config.to_string())
     write_config(config)
     device_adress = find_device()

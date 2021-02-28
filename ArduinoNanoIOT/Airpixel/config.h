@@ -17,3 +17,6 @@
 #define STATUS_2_PIN 4
 
 #define DEVICE_ID "ethereality"
+
+#define HEARTBEAT_DELTA 100
+#define TIMEOUT 3000

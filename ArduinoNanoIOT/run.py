@@ -30,6 +30,8 @@ class Config:
     led_pin: int = 2
     status_1_pin: int = 3
     status_2_pin: int = 4
+    heartbeat_delta: int = 100
+    timeout: int = 3000
 
     def to_string(self):
         return (
@@ -44,6 +46,8 @@ class Config:
             f"#define STATUS_1_PIN {self.status_1_pin}\n"
             f"#define STATUS_2_PIN {self.status_2_pin}\n"
             f'#define PIXEL_COUNT {self.pixel_count}\n'
+            f"#define HEARTBEAT_DELTA {self.heartbeat_delta}\n"
+            f"#define TIMEOUT {self.timeout}\n"
         )
 
 
@@ -84,7 +88,21 @@ def find_device():
 @click.option("--status-1-pin", prompt="Pin for Status led (1/2)", type=int, default=3)
 @click.option("--status-2-pin", prompt="Pin for Status led (2/2)", type=int, default=4)
 @click.option("--debug-mode", prompt="Enable serial monitor?", type=bool, default=False)
-def main(device_id, pixel_count, server_ip, server_port, wifi_ssid, wifi_password, led_pin, status_1_pin, status_2_pin, debug_mode,
+@click.option("--heartbeat-delta", prompt="Hertbeat period in ms", type=int, default=100)
+@click.option("--timeout", prompt="Timeout in ms", type=int, default=3000)
+def main(
+    device_id,
+    pixel_count,
+    server_ip,
+    server_port,
+    wifi_ssid,
+    wifi_password,
+    led_pin,
+    status_1_pin,
+    status_2_pin,
+    debug_mode,
+    heartbeat_delta,
+    timeout,
 ):
     config = Config(
         device_id,
@@ -97,6 +115,8 @@ def main(device_id, pixel_count, server_ip, server_port, wifi_ssid, wifi_passwor
         status_1_pin=status_1_pin,
         status_2_pin=status_2_pin,
         debug_mode=debug_mode,
+        heartbeat_delta=heartbeat_delta,
+        timeout=timeout,
     )
     print(config.to_string())
     write_config(config)

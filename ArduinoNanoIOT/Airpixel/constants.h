@@ -13,7 +13,3 @@
 #define CHARS_IN_UINT64 ( sizeof(uint64_t) / sizeof(uint8_t) )
 
 #define UDP_MAX_PACKET_SIZE 65507
-#define PIXEL_COUNT 288
-
-#define HEARTBEAT_DELTA 100
-#define TIMEOUT 3000

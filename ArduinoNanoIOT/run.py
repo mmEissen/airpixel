@@ -72,7 +72,8 @@ def find_device():
             if fqbn == ARDUINO_NANO_33_IOT_FQBN:
                 return device["address"]
     raise NoDeviceError(
-        "Could not find an Arduino NANO 33 IoT. Are you running docker with --privileged flag?"
+        "Could not find an Arduino NANO 33 IoT. Are you running docker with"
+        " --privileged flag?"
     )
 
 
@@ -118,42 +119,48 @@ def find_device():
     prompt="Port the server is listening on",
     type=int,
     default=50000,
-    help="The port that the server is listening on. You only need to change this if the default is already in use on the system that the server is running on.",
+    help="The port that the server is listening on. You only need to change this "
+    "if the default is already in use on the system that the server is running on.",
 )
 @click.option(
     "--status-1-pin",
     prompt="Pin for Status led (1/2)",
     type=int,
     default=3,
-    help="The status pins allow for troubleshooting. Their on/off state encodes the status that the device is in.",
+    help="The status pins allow for troubleshooting. Their on/off state encodes "
+    "the status that the device is in.",
 )
 @click.option(
     "--status-2-pin",
     prompt="Pin for Status led (2/2)",
     type=int,
     default=4,
-    help="The status pins allow for troubleshooting. Their on/off state encodes the status that the device is in.",
+    help="The status pins allow for troubleshooting. Their on/off state encodes "
+    "the status that the device is in.",
 )
 @click.option(
     "--debug-mode",
     prompt="Enable serial monitor?",
     type=bool,
     default=False,
-    help="Wether to print debug messages via the serial connection. Only turn this on for debugging.",
+    help="Wether to print debug messages via the serial connection. Only turn "
+    "this on for debugging.",
 )
 @click.option(
     "--heartbeat-delta",
     prompt="Hertbeat period in ms",
     type=int,
     default=100,
-    help="The time interval in milliseconds between heartbeat messages sent to the server to confirm the liveliness of the device.",
+    help="The time interval in milliseconds between heartbeat messages sent to"
+    " the server to confirm the liveliness of the device.",
 )
 @click.option(
     "--timeout",
     prompt="Timeout in ms",
     type=int,
     default=3000,
-    help="The time in milliseconds since the last message from the server befor the connection or server is assumed dead.",
+    help="The time in milliseconds since the last message from the server "
+    "before the connection or server is assumed dead.",
 )
 def main(
     device_id,

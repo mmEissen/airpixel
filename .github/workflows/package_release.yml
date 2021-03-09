@@ -36,12 +36,12 @@ jobs:
           dpkg --compare-versions $this_version gt $remote_version
       - name: Lint
         run: |
-          black --diff --check .
-          isort --check .
-          flake8 . --exclude .venv
-          mypy --disallow-untyped-defs airpixel/
+          poetry run black --diff --check .
+          poetry run isort --check .
+          poetry run flake8 . --exclude .venv
+          poetry run mypy --disallow-untyped-defs airpixel/
       - name: Test
-        run: pytest
+        run: poetry run pytest
   
   build_and_publish_docker:
     runs-on: ubuntu-latest

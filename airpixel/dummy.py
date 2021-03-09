@@ -1,7 +1,8 @@
-import os
-import numpy as np  # type: ignore
 import io
+import os
 import time
+
+import numpy as np  # type: ignore
 
 from airpixel import client
 

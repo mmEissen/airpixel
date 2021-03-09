@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import atexit
 import asyncio
+import atexit
 import dataclasses
 import logging
 import socket
@@ -10,7 +10,6 @@ import time
 import typing as t
 
 import yaml
-
 
 logging.basicConfig(level=logging.DEBUG)
 log = logging.getLogger(__name__)
@@ -188,7 +187,10 @@ class DeviceConfig:
 
     @classmethod
     def from_dict(cls, dict_: t.Dict[str, t.Any]) -> DeviceConfig:
-        return cls(dict_["device_id"], dict_["command_template"],)
+        return cls(
+            dict_["device_id"],
+            dict_["command_template"],
+        )
 
 
 class Application:

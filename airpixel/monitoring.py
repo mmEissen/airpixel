@@ -13,7 +13,6 @@ import yaml
 
 from airpixel import logging_config
 
-
 log = logging.getLogger(__name__)
 
 
@@ -357,7 +356,11 @@ class Config:
 
     @classmethod
     def from_dict(cls, dict_: t.Dict[str, t.Any]) -> Config:
-        return cls(dict_["address"], dict_["port"], dict_["unix_socket"],)
+        return cls(
+            dict_["address"],
+            dict_["port"],
+            dict_["unix_socket"],
+        )
 
     @classmethod
     def load(cls, file_name: str) -> Config:

@@ -7,8 +7,7 @@ import typing as t
 
 import yaml
 
-from airpixel import framework, monitoring, logging_config
-
+from airpixel import framework, logging_config, monitoring
 
 log = logging.getLogger("airpixel")
 

@@ -1,21 +1,19 @@
 from __future__ import annotations
 
 import asyncio
-import socket
-import typing as t
 import dataclasses
 import io
+import socket
 import threading
+import typing as t
 
-import yaml
-
-import pyqtgraph as pg  # type: ignore
 import numpy as np  # type: ignore
-from pyqtgraph.Qt import QtGui  # type: ignore
+import pyqtgraph as pg  # type: ignore
+import yaml
 from PyQt5 import QtCore  # type: ignore
+from pyqtgraph.Qt import QtGui  # type: ignore
 
 from airpixel import monitoring
-
 
 _PlotDict = t.Dict[str, "SimplePlot"]
 
@@ -77,7 +75,8 @@ class MonitorServer:
         with socket.create_connection((self.ip_address, int(self.port))) as sock:
             sock.send(
                 monitoring.Command(
-                    monitoring.CommandVerb.CONNECT, str(self.local_port),
+                    monitoring.CommandVerb.CONNECT,
+                    str(self.local_port),
                 ).to_bytes()
             )
             response_data = sock.recv(128)

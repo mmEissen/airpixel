@@ -34,24 +34,27 @@ jobs:
           echo This version: $this_version
           echo Remote version: $remote_version
           dpkg --compare-versions $this_version gt $remote_version
-      - name: Lint/Test
-        run: TOX_PARALLEL_NO_SPINNER=1 poetry run tox -p
+      - name: Lint
+        run: |
+          black --diff --check .
+          isort --check .
+          flake8 . --exclude .venv
+          mypy --disallow-untyped-defs airpixel/
+      - name: Test
+        run: pytest
   
   build_and_publish_docker:
     runs-on: ubuntu-latest
     needs: quality_assurance
     steps:
-      - 
-        name: Checkout
+      - name: Checkout
         uses: actions/checkout@v2
-      -
-        name: Login to DockerHub
+      - name: Login to DockerHub
         uses: docker/login-action@v1 
         with:
           username: mmeissen
           password: ${{ secrets.DOCKER_HUB_TOKEN }}
-      - 
-        name: Build and push Docker images
+      - name: Build and push Docker images
         id: docker_build
         uses: docker/build-push-action@v2.1.0
         with:
@@ -72,7 +75,7 @@ jobs:
       image:  python:3.8-buster
     steps:
       - name: Install Poetry
-        uses: snok/install-poetry@v1.1.1
+        uses: Gr1N/setup-poetry@v4
       - name: Checkout
         uses: actions/checkout@v2
       - name: Install

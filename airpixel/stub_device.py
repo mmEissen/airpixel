@@ -1,7 +1,6 @@
-import sys
-
-import time
 import socket
+import sys
+import time
 
 
 def main() -> None:

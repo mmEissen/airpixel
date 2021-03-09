@@ -40,7 +40,8 @@ class TestPackage:
 
     @staticmethod
     @pytest.mark.parametrize(
-        "raw_package", [b"", b"no_separator", b"\x00only data"],
+        "raw_package",
+        [b"", b"no_separator", b"\x00only data"],
     )
     def test_from_bytes_for_invalid_header(raw_package):
         with pytest.raises(monitoring.PackageParsingError):
@@ -54,7 +55,8 @@ class TestPackage:
 
     @staticmethod
     @pytest.mark.parametrize(
-        "stream_id", [""],
+        "stream_id",
+        [""],
     )
     def test_to_bytes_for_invalid_stream_id(package):
         with pytest.raises(monitoring.PackageSerializationError):
@@ -167,7 +169,10 @@ class TestDispachProtocol:
         "monitoring_server", [mock.MagicMock(spec=monitoring.Server)]
     )
     def test_datagram_received_with_valid_package(
-        package, dispatch_protocol, raw_package, monitoring_server,
+        package,
+        dispatch_protocol,
+        raw_package,
+        monitoring_server,
     ):
         dispatch_protocol.datagram_received(raw_package, mock.MagicMock)
 

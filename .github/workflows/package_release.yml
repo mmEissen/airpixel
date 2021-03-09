@@ -44,8 +44,9 @@ jobs:
         run: poetry run pytest
   
   build_and_publish_docker:
-    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/master'
     needs: quality_assurance
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v2

@@ -78,18 +78,18 @@ def find_device():
 
 
 @click.command()
-@click.option("--device-id", prompt="Device ID")
-@click.option("--pixel-count", prompt="How many LEDs?", type=int)
-@click.option("--server-ip", prompt="IP address of the server", type=str)
-@click.option("--server-port", prompt="Port the server is listening on", type=int, default=50000)
-@click.option("--wifi-ssid", prompt="WiFi SSID", type=str)
-@click.option("--wifi-password", prompt="WiFi Password", type=str)
-@click.option("--led-pin", prompt="Pin that the LEDs are connected to", type=int, default=2)
-@click.option("--status-1-pin", prompt="Pin for Status led (1/2)", type=int, default=3)
-@click.option("--status-2-pin", prompt="Pin for Status led (2/2)", type=int, default=4)
-@click.option("--debug-mode", prompt="Enable serial monitor?", type=bool, default=False)
-@click.option("--heartbeat-delta", prompt="Hertbeat period in ms", type=int, default=100)
-@click.option("--timeout", prompt="Timeout in ms", type=int, default=3000)
+@click.option("--device-id", prompt="Device ID", help="A unique byte string that identifies the device. May be picked arbitrarily.")
+@click.option("--pixel-count", prompt="How many LEDs?", type=int, help="The number of pixels connected to the device.")
+@click.option("--led-pin", prompt="Pin that the LEDs are connected to", type=int, default=2, help="The pin on the Arduino that the data line of the pixels is connected to.")
+@click.option("--wifi-ssid", prompt="WiFi SSID", type=str, help="The WiFi SSID to try to connect to on startup.")
+@click.option("--wifi-password", prompt="WiFi Password", type=str, help="The password of the WiFi.")
+@click.option("--server-ip", prompt="IP address of the server", type=str, help="The IPv4 address of the server from within the WiFi network.")
+@click.option("--server-port", prompt="Port the server is listening on", type=int, default=50000, help="The port that the server is listening on. You only need to change this if the default is already in use on the system that the server is running on.")
+@click.option("--status-1-pin", prompt="Pin for Status led (1/2)", type=int, default=3, help="The status pins allow for troubleshooting. Their on/off state encodes the status that the device is in.")
+@click.option("--status-2-pin", prompt="Pin for Status led (2/2)", type=int, default=4, help="The status pins allow for troubleshooting. Their on/off state encodes the status that the device is in.")
+@click.option("--debug-mode", prompt="Enable serial monitor?", type=bool, default=False, help="Wether to print debug messages via the serial connection. Only turn this on for debugging.")
+@click.option("--heartbeat-delta", prompt="Hertbeat period in ms", type=int, default=100, help="The time interval in milliseconds between heartbeat messages sent to the server to confirm the liveliness of the device.")
+@click.option("--timeout", prompt="Timeout in ms", type=int, default=3000, help="The time in milliseconds since the last message from the server befor the connection or server is assumed dead.")
 def main(
     device_id,
     pixel_count,

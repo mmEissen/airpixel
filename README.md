@@ -42,5 +42,3 @@ python -m airpixel
 ```
 
 TODO: Explain configuation of the server
-
-
